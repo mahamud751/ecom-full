@@ -1,0 +1,451 @@
+@import "tailwindcss";
+
+/**
+ * Ahona Premium — distinct from Arogga
+ * Deep forest + champagne gold + warm ivory
+ */
+:root {
+  --forest-deep: #0c2a28;
+  --forest: #164f4a;
+  --forest-mid: #1f6b64;
+  --gold: #c9a227;
+  --gold-deep: #9a7b1a;
+  --gold-soft: #f5edd4;
+  --ivory: #f8f6f1;
+  --surface: #ffffff;
+  --ink: #14201f;
+  --ink-muted: #5c6b69;
+  --line: #e8e4db;
+  --discount: #c41e3a;
+  --lime: #3d9a6a;
+
+  /* aliases used by older components */
+  --background: #f8f6f1;
+  --foreground: #14201f;
+  --brand: #164f4a;
+  --brand-dark: #0c2a28;
+  --brand-deeper: #0c2a28;
+  --brand-light: #e8f2f0;
+  --brand-soft: #f0f7f6;
+  --brand-mid: #1f6b64;
+  --accent: #c9a227;
+  --accent-soft: #f5edd4;
+  --muted: #5c6b69;
+  --border: #e8e4db;
+  --card: #ffffff;
+  --cream: #f8f6f1;
+  --footer: #0c2a28;
+  --gold-star: #d4af37;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-deeper: var(--brand-deeper);
+  --color-brand-light: var(--brand-light);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-mid: var(--brand-mid);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-discount: var(--discount);
+  --color-gold: var(--gold);
+  --color-lime: var(--lime);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-cream: var(--cream);
+  --color-footer: var(--footer);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-playfair);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--ivory);
+  color: var(--ink);
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  overflow-x: hidden;
+}
+
+/* Daraz-style: use Bengali-capable font when BN selected */
+html[data-locale="bn"] body {
+  font-family: var(--font-bengali), var(--font-inter), system-ui, sans-serif;
+}
+
+.font-serif {
+  font-family: var(--font-playfair), Georgia, "Times New Roman", serif;
+}
+
+.container-main {
+  width: 100%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+@media (min-width: 640px) {
+  .container-main {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container-main {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.home-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-section {
+  padding-top: 18px;
+  padding-bottom: 4px;
+}
+
+@media (min-width: 768px) {
+  .home-section {
+    padding-top: 24px;
+    padding-bottom: 6px;
+  }
+}
+
+/* Product cards — same rhythm in carousel + grid */
+.product-card-wrap {
+  flex: 0 0 158px;
+  width: 158px;
+  max-width: 158px;
+  min-width: 158px;
+}
+
+@media (min-width: 768px) {
+  .product-card-wrap {
+    flex: 0 0 196px;
+    width: 196px;
+    max-width: 196px;
+    min-width: 196px;
+  }
+}
+
+.product-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.product-card:hover {
+  box-shadow: 0 16px 40px -16px rgba(12, 42, 40, 0.2);
+  transform: translateY(-2px);
+}
+
+.product-img-box {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+.badge-off {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 10;
+  background: linear-gradient(135deg, #c41e3a, #a01830);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  padding: 4px 7px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
+}
+
+.btn-add {
+  border: 1.5px solid var(--forest);
+  background: transparent;
+  color: var(--forest);
+  font-weight: 700;
+  font-size: 11px;
+  border-radius: 999px;
+  height: 32px;
+  min-width: 72px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.btn-add:hover,
+.btn-add.is-added {
+  background: var(--forest-deep);
+  border-color: var(--forest-deep);
+  color: #fff;
+}
+
+.btn-add.is-request {
+  border-color: #d97706;
+  background: #f59e0b;
+  color: #fff;
+}
+
+.btn-add.is-request:hover {
+  background: #d97706;
+  border-color: #d97706;
+  color: #fff;
+}
+
+.section-title {
+  font-family: var(--font-playfair), Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+@media (min-width: 640px) {
+  .section-title {
+    font-size: 1.28rem;
+  }
+}
+
+.see-all-link {
+  color: var(--forest);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.see-all-link:hover {
+  color: var(--gold-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.product-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding-bottom: 4px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .product-track {
+    gap: 16px;
+  }
+}
+
+.service-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  min-width: 136px;
+  min-height: 164px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+  box-shadow: 0 6px 18px -12px rgba(12, 42, 40, 0.12);
+}
+
+@media (min-width: 768px) {
+  .service-card {
+    min-width: 0;
+  }
+}
+
+.service-card:hover {
+  box-shadow: 0 14px 36px -14px rgba(12, 42, 40, 0.18);
+  transform: translateY(-3px);
+}
+
+.cat-tile {
+  transition: transform 0.2s;
+}
+.cat-tile:hover {
+  transform: translateY(-3px);
+}
+.cat-tile:hover .cat-name {
+  color: var(--forest);
+}
+
+/* Header stack: mobile (logo+search) · tablet (utility+main) · desktop (+tabs) */
+.page-offset {
+  padding-top: 108px;
+}
+
+@media (min-width: 640px) {
+  .page-offset {
+    padding-top: 128px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-offset {
+    padding-top: 136px;
+  }
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hero handled in component; keep soft page backdrop */
+
+.doctor-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.doctor-card:hover {
+  border-color: var(--forest);
+  box-shadow: 0 12px 32px -12px rgba(12, 42, 40, 0.18);
+}
+
+:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-slide-in {
+  animation: slide-in-right 0.28s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+/* Hub page hero */
+.hub-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  min-height: 240px;
+}
+
+.hub-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgba(12, 42, 40, 0.92) 0%,
+    rgba(12, 42, 40, 0.55) 45%,
+    rgba(12, 42, 40, 0.2) 100%
+  );
+}
+
+/* Admin full-bleed (no store top offset) */
+body:has([data-admin-root]) .page-offset {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Prescription print */
+@media print {
+  header,
+  footer,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .rx-sheet {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

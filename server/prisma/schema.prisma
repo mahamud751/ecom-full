@@ -1,0 +1,668 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Catalog ──────────────────────────────────────────────────────
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  image       String?
+  icon        String?
+  color       String?    @default("#E6F9F1")
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  products    Product[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  logo      String?
+  isActive  Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  description     String
+  shortDesc       String?
+  image           String
+  images          String[]         @default([])
+  price           Float
+  comparePrice    Float?
+  stock           Int              @default(100)
+  sku             String?          @unique
+  unit            String?          @default("pcs")
+  rating          Float            @default(4.5)
+  reviewCount     Int              @default(0)
+  isFeatured      Boolean          @default(false)
+  isFlashSale     Boolean          @default(false)
+  expressDelivery Boolean          @default(true)
+  isActive        Boolean          @default(true)
+  isMedicine      Boolean          @default(false)
+  requiresRx      Boolean          @default(false)
+  tags            String[]         @default([])
+  section         String?
+  categoryId      String
+  category        Category         @relation(fields: [categoryId], references: [id])
+  brandId         String?
+  brand           Brand?           @relation(fields: [brandId], references: [id])
+  vendorId        String?
+  vendor          Vendor?          @relation(fields: [vendorId], references: [id])
+  orderItems      OrderItem[]
+  variants        ProductVariant[]
+  stockMovements  StockMovement[]
+  notifies        ProductNotify[]
+  reviews         ProductReview[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([vendorId])
+  @@index([section])
+  @@index([isFeatured])
+  @@index([isFlashSale])
+  @@index([isActive])
+}
+
+// ── Product reviews (admin-moderated) ────────────────────────────
+
+model ProductReview {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  authorName   String
+  authorPhone  String?
+  authorEmail  String?
+  rating       Int // 1–5
+  title        String?
+  body         String
+  /// PENDING → admin must APPROVED before public show · REJECTED hidden
+  status       String   @default("PENDING")
+  isVerified   Boolean  @default(false) // bought on Cholbe (optional flag)
+  adminNote    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reviewedAt   DateTime? // when admin acted
+
+  @@index([productId])
+  @@index([status])
+  @@index([rating])
+  @@index([createdAt])
+}
+
+// ── Product alerts (back in stock / price drop) ──────────────────
+
+model ProductNotify {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// STOCK = back in stock · PRICE = price drop at or below targetPrice
+  type         String   @default("STOCK")
+  contact      String // phone or email
+  contactType  String   @default("phone") // phone | email
+  targetPrice  Float?
+  /// ACTIVE waiting · READY to notify user · SENT · CANCELLED
+  status       String   @default("ACTIVE")
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  notifiedAt   DateTime?
+
+  @@index([productId])
+  @@index([status])
+  @@index([contact])
+  @@index([type])
+}
+
+model ProductVariant {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name         String
+  sku          String?
+  price        Float
+  comparePrice Float?
+  stock        Int      @default(0)
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  attributes   String? // JSON: {"size":"10 tabs","strength":"500mg"}
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([productId])
+}
+
+// ── Customer accounts (storefront) ───────────────────────────────
+
+model Customer {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String // bcrypt
+  name          String
+  phone         String?
+  avatarUrl     String?
+  /// Optional profile fields
+  gender        String? // male | female | other
+  dateOfBirth   DateTime?
+  address       String?
+  city          String?   @default("Dhaka")
+  area          String?
+  postalCode    String?
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+  orders        Order[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([isActive])
+}
+
+// ── Commerce ─────────────────────────────────────────────────────
+
+model Banner {
+  id        String   @id @default(cuid())
+  title     String
+  subtitle  String?
+  image     String
+  link      String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id              String          @id @default(cuid())
+  orderNumber     String          @unique
+  customerId      String?
+  customer        Customer?       @relation(fields: [customerId], references: [id])
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  address         String
+  city            String          @default("Dhaka")
+  area            String?
+  notes           String?
+  subtotal        Float
+  deliveryFee     Float           @default(60)
+  discount        Float           @default(0)
+  total           Float
+  status          OrderStatus     @default(PENDING)
+  paymentMethod   String          @default("COD")
+  paymentStatus   String          @default("UNPAID") // UNPAID, PAID, REFUNDED
+  couponCode      String?
+  prescriptionUrl String? // uploaded Rx for restricted meds
+  vendorId        String?
+  vendor          Vendor?         @relation(fields: [vendorId], references: [id])
+  riderId         String?
+  rider           Rider?          @relation(fields: [riderId], references: [id])
+  assignedAt      DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  items           OrderItem[]
+  refunds         RefundRequest[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status])
+  @@index([riderId])
+  @@index([vendorId])
+  @@index([customerId])
+  @@index([customerPhone])
+  @@index([couponCode])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  variantId String?
+  quantity  Int
+  price     Float
+  name      String
+  image     String
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// ── Vendor B2B ───────────────────────────────────────────────────
+
+model Vendor {
+  id             String        @id @default(cuid())
+  name           String
+  slug           String        @unique
+  phone          String
+  email          String?
+  address        String?
+  city           String        @default("Dhaka")
+  tradeLicense   String?
+  commissionRate Float         @default(10)
+  status         VendorStatus  @default(PENDING)
+  isActive       Boolean       @default(true)
+  products       Product[]
+  orders         Order[]
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status])
+}
+
+enum VendorStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+// ── Operations / Riders ──────────────────────────────────────────
+
+model Rider {
+  id          String       @id @default(cuid())
+  name        String
+  phone       String       @unique
+  vehicleType String       @default("Bike")
+  zone        String?
+  nid         String?
+  address     String?
+  /// Fixed payout per delivered order (platform may keep rest of deliveryFee)
+  perDelivery Float        @default(40)
+  isOnline    Boolean      @default(false)
+  isActive    Boolean      @default(true)
+  status      RiderStatus  @default(OFFLINE)
+  notes       String?
+  orders      Order[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status])
+  @@index([isOnline])
+}
+
+enum RiderStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+// ── Stock ────────────────────────────────────────────────────────
+
+model StockMovement {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  type      String // IN, OUT, ADJUST
+  quantity  Int
+  note      String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+// ── Lab ──────────────────────────────────────────────────────────
+
+model LabTest {
+  id           String           @id @default(cuid())
+  name         String
+  slug         String           @unique
+  description  String?
+  image        String?
+  price        Float
+  comparePrice Float?
+  reportHours  Int              @default(24)
+  bookedCount  Int              @default(0)
+  includes     Int              @default(1)
+  category     String?
+  isActive     Boolean          @default(true)
+  sortOrder    Int              @default(0)
+  packageItems LabPackageItem[]
+  bookings     LabBooking[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([isActive])
+  @@index([category])
+}
+
+model LabPackage {
+  id           String           @id @default(cuid())
+  name         String
+  slug         String           @unique
+  description  String?
+  image        String?
+  price        Float
+  comparePrice Float?
+  reportHours  Int              @default(24)
+  isActive     Boolean          @default(true)
+  sortOrder    Int              @default(0)
+  items        LabPackageItem[]
+  bookings     LabBooking[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model LabPackageItem {
+  id        String     @id @default(cuid())
+  packageId String
+  package   LabPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  testId    String
+  test      LabTest    @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, testId])
+}
+
+model LabBooking {
+  id            String          @id @default(cuid())
+  bookingNumber String          @unique
+  customerName  String
+  customerPhone String
+  address       String?
+  city          String          @default("Dhaka")
+  status        LabBookingStatus @default(PENDING)
+  total         Float
+  labTestId     String?
+  labTest       LabTest?        @relation(fields: [labTestId], references: [id])
+  labPackageId  String?
+  labPackage    LabPackage?     @relation(fields: [labPackageId], references: [id])
+  scheduledAt   DateTime?
+  notes         String?
+  reportUrl     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([status])
+  @@index([customerPhone])
+}
+
+enum LabBookingStatus {
+  PENDING
+  CONFIRMED
+  SAMPLE_COLLECTED
+  PROCESSING
+  REPORT_READY
+  CANCELLED
+}
+
+// ── Admin ────────────────────────────────────────────────────────
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  password     String // bcrypt hash
+  role         String   @default("ADMIN") // SUPER_ADMIN, ADMIN, OPS, LAB, PHARMACY
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ── Coupons ──────────────────────────────────────────────────────
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  /// PERCENT or FIXED
+  type          String    @default("PERCENT")
+  value         Float
+  minOrder      Float     @default(0)
+  maxDiscount   Float?
+  usageLimit    Int?
+  usedCount     Int       @default(0)
+  isActive      Boolean   @default(true)
+  startsAt      DateTime  @default(now())
+  endsAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+// ── Support tickets ──────────────────────────────────────────────
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  ticketNo    String   @unique
+  name        String
+  phone       String
+  email       String?
+  subject     String
+  message     String
+  /// OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  status      String   @default("OPEN")
+  priority    String   @default("NORMAL")
+  adminNote   String?
+  orderNumber String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([phone])
+}
+
+// ── Refund / return requests ─────────────────────────────────────
+
+model RefundRequest {
+  id          String   @id @default(cuid())
+  requestNo   String   @unique
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reason      String
+  details     String?
+  /// REQUESTED, APPROVED, REJECTED, REFUNDED
+  status      String   @default("REQUESTED")
+  refundAmount Float?
+  adminNote   String?
+  images      String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([orderId])
+}
+
+// ── Doctor settlements / payouts ─────────────────────────────────
+
+model DoctorSettlement {
+  id            String   @id @default(cuid())
+  settlementNo  String   @unique
+  doctorId      String
+  doctor        Doctor   @relation(fields: [doctorId], references: [id])
+  periodStart   DateTime
+  periodEnd     DateTime
+  consultCount  Int      @default(0)
+  grossFees     Float    @default(0)
+  platformCut   Float    @default(0)
+  doctorShare   Float    @default(0)
+  /// DRAFT, APPROVED, PAID
+  status        String   @default("DRAFT")
+  paidAt        DateTime?
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([doctorId])
+  @@index([status])
+}
+
+// ── Site / compliance settings ──────────────────────────────────
+
+model SiteSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+// ── Doctor consultation system ───────────────────────────────────
+
+model Doctor {
+  id               String            @id @default(cuid())
+  slug             String            @unique
+  name             String
+  specialty        String
+  image            String
+  experience       Int               @default(5)
+  fee              Float
+  /// Optional higher fee for emergency/instant consults (defaults to fee)
+  emergencyFee     Float?
+  rating           Float             @default(4.5)
+  patients         String            @default("0")
+  hospital         String?
+  languages        String            @default("Bangla, English")
+  bio              String?
+  bmdcNumber       String?
+  phone            String?
+  email            String?           @unique
+  /// bcrypt hash for doctor-portal login
+  password         String?
+  /// Platform commission % on each completed consult (rest goes to doctor)
+  platformCutPct   Float             @default(20)
+  isOnline         Boolean           @default(true)
+  isActive         Boolean           @default(true)
+  /// Can take instant emergency consults (no schedule required when online)
+  isEmergency      Boolean           @default(false)
+  schedules        DoctorSchedule[]
+  consultations    Consultation[]
+  settlements      DoctorSettlement[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([specialty])
+  @@index([isOnline])
+  @@index([isActive])
+  @@index([isEmergency])
+}
+
+model DoctorSchedule {
+  id        String  @id @default(cuid())
+  doctorId  String
+  doctor    Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  slotMins  Int     @default(30)
+  isActive  Boolean @default(true)
+
+  @@index([doctorId])
+  @@index([dayOfWeek])
+}
+
+enum ConsultType {
+  VIDEO
+  AUDIO
+}
+
+enum ConsultStatus {
+  PENDING
+  CONFIRMED
+  IN_CALL
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Consultation {
+  id            String         @id @default(cuid())
+  consultNumber String         @unique
+  doctorId      String
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
+  patientName   String
+  patientPhone  String
+  patientAge    Int?
+  patientGender String?
+  symptoms      String?
+  type          ConsultType    @default(VIDEO)
+  status        ConsultStatus  @default(PENDING)
+  /// true = emergency/instant (no pre-booked slot)
+  isEmergency   Boolean        @default(false)
+  scheduledAt   DateTime?
+  channelName   String
+  startedAt     DateTime?
+  endedAt       DateTime?
+  fee           Float
+  prescription  Prescription?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([doctorId])
+  @@index([status])
+  @@index([patientPhone])
+  @@index([channelName])
+  @@index([isEmergency])
+}
+
+model Prescription {
+  id             String              @id @default(cuid())
+  consultationId String              @unique
+  consultation   Consultation        @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  diagnosis      String?
+  advice         String?
+  followUp       String?
+  items          PrescriptionItem[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicineName   String
+  dosage         String
+  frequency      String
+  duration       String
+  instructions   String?
+  sortOrder      Int          @default(0)
+
+  @@index([prescriptionId])
+}
+
+// ── Auth refresh tokens (JWT rotation) ───────────────────────────
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  /// CUSTOMER | ADMIN | DOCTOR
+  role      String    @default("CUSTOMER")
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([role])
+}
