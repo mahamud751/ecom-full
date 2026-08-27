@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const API_ORIGIN =
   process.env.API_URL ||
@@ -7,6 +8,10 @@ const API_ORIGIN =
 const apiHost = new URL(API_ORIGIN.replace(/\/api\/?$/, ""));
 
 const nextConfig: NextConfig = {
+  // Repo root also contains the sibling server/ and app/ projects; pin
+  // Next's workspace root here so lockfile inference and file tracing
+  // stay within this project.
+  outputFileTracingRoot: path.join(__dirname),
   serverExternalPackages: ["sharp"],
   async rewrites() {
     // Uploaded media lives on the NestJS server; proxy it so relative
