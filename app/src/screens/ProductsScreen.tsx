@@ -153,5 +153,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.forest,
     borderColor: colors.forest,
   },
-  sortText: { fontSize: 12.5, fontWeight: '600', color: colors.inkMuted },
+  sortText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: colors.inkMuted,
+  },
 });

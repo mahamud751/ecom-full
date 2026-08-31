@@ -22,6 +22,8 @@ async function getHomeData() {
     himalaya: ProductCardData[];
     flashSale: ProductCardData[];
     featured: ProductCardData[];
+    beautyPicks: ProductCardData[];
+    foodPicks: ProductCardData[];
     doctors: DoctorPreview[];
   }>("/home");
 }
@@ -39,6 +41,16 @@ export default async function HomePage() {
         seeAllHref="/store"
       />
       <CategoryGrid categories={data.categories} />
+      <ProductSection
+        titleKey="home.beautyPicks"
+        products={data.beautyPicks}
+        seeAllHref="/category/skincare"
+      />
+      <ProductSection
+        titleKey="home.foodPicks"
+        products={data.foodPicks}
+        seeAllHref="/category/food-nutrition"
+      />
       <ProductSection
         titleKey="home.flashSale"
         products={data.flashSale}

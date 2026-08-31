@@ -1,0 +1,58 @@
+PLAY CONSOLE — Ahona
+====================
+
+App name (max 50)
+Ahona
+
+Short description (max 80)
+Medicines, lab tests & video doctors. Home collection. 12–24h delivery.
+
+Full description
+Ahona is a health and beauty app for Bangladesh: genuine medicines, lab tests with home sample collection, and video or audio doctor consultations — in one place.
+
+MEDICINES
+• Thousands of pharmacy SKUs with pack photos, strength, and manufacturer
+• Prescription (Rx) and OTC clearly marked
+• Search by brand, generic, or category
+• Express delivery in 12–24 hours
+
+LAB TESTS AT HOME
+• CBC, HbA1c, lipid profile, dengue NS1, thyroid, and more
+• Each test shows sample type, fasting, preparation, and report time
+• Health packages (full body, diabetes, fever, heart risk)
+• Book from the app — our team collects the sample at your address
+
+DOCTOR CONSULT
+• Video or audio with verified specialists
+• Instant or scheduled slots
+• E-prescription after the consult
+
+BEAUTY & WELLNESS
+• Skincare, haircare, baby care, and nutrition
+• Real pack photos from the catalog
+
+Ahona — premium health, delivered at dawn.
+
+Contact
+support@ahona.store
++8801700000000
+
+Category
+Health & Fitness  (or Medical)
+
+Content rating
+Everyone  (PEGI 3 / ESRB Everyone) — no user-generated social, no ads in the listing by default
+
+Privacy policy URL
+https://ahona.store/privacy   (or your live domain)
+
+Graphic assets to upload
+1. High-res icon     → icon/play-icon-512.png          (512×512 PNG)
+2. Feature graphic   → graphics/feature-graphic-1024x500.png  (1024×500)
+3. Phone screenshots (upload in this order):
+     screenshots/phone/01-home.png
+     screenshots/phone/02-medicines.png
+     screenshots/phone/03-product.png
+     screenshots/phone/04-lab.png
+     screenshots/phone/05-doctors.png
+   Size: 1080×1920 (9:16), PNG

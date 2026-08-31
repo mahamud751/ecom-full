@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCartStore } from "@/lib/cart-store";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { formatPrice } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -66,7 +66,7 @@ export default function CartPage() {
                 href={`/products/${item.slug}`}
                 className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-brand-soft"
               >
-                <Image
+                <CatalogImage
                   src={item.image}
                   alt={item.name}
                   fill

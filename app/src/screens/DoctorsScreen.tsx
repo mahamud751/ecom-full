@@ -58,6 +58,7 @@ export function DoctorsScreen({ navigation }: TabScreenProps<'Doctors'>) {
             style={[styles.chip, spec === s && styles.chipActive]}
           >
             <Text
+              numberOfLines={1}
               style={[styles.chipText, spec === s && { color: colors.white }]}
             >
               {s}
@@ -146,7 +147,12 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   chipActive: { backgroundColor: colors.forest, borderColor: colors.forest },
-  chipText: { fontSize: 12.5, fontWeight: '600', color: colors.inkMuted },
+  chipText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: colors.inkMuted,
+  },
   card: {
     flexDirection: 'row',
     gap: 12,

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
 import { mediaUrl } from '../config';
 import { BrandLogo } from '../components/Logo';
+import { AppIcon } from '../components/AppIcon';
 import { ProductCard } from '../components/ProductCard';
 import { ErrorView, Loading, SectionHeader } from '../components/ui';
 import { colors, radii } from '../theme';
@@ -88,7 +89,8 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
             onPress={() => navigation.navigate('Search')}
             style={styles.searchBtn}
           >
-            <Text style={styles.searchBtnText}>🔍 Search products…</Text>
+            <AppIcon name="search" color={colors.inkMuted} size={18} />
+            <Text style={styles.searchBtnText}>Search products, doctors, labs…</Text>
           </Pressable>
         </View>
 
@@ -154,7 +156,14 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                 }
               >
                 <View style={styles.catIcon}>
-                  <Text style={styles.catIconText}>{c.icon || '🌿'}</Text>
+                  {c.image ? (
+                    <Image
+                      source={{ uri: mediaUrl(c.image) }}
+                      style={styles.catImage}
+                    />
+                  ) : (
+                    <Text style={styles.catIconText}>{c.icon || '🌿'}</Text>
+                  )}
                 </View>
                 <Text numberOfLines={1} style={styles.catName}>
                   {c.name}
@@ -267,6 +276,9 @@ const styles = StyleSheet.create({
   },
   searchBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: colors.surface,
     borderRadius: radii.pill,
     borderWidth: 1,
@@ -303,7 +315,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandLight,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  catImage: { width: 56, height: 56 },
   catIconText: { fontSize: 24 },
   catName: {
     fontSize: 11.5,

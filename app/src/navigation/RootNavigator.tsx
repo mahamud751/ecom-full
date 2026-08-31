@@ -1,6 +1,6 @@
 /** Root navigation — bottom tabs + full-screen stack. */
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -47,6 +47,8 @@ import {
   SupportScreen,
 } from '../screens/MiscScreens';
 import { useCart } from '../store/cart';
+import { AppIcon } from '../components/AppIcon';
+import { FluidTabBar } from '../components/FluidTabBar';
 
 const Stack = createNativeStackNavigator<RootParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -65,54 +67,79 @@ const navTheme = {
 const stackOptions = {
   headerTintColor: colors.white,
   headerStyle: { backgroundColor: colors.forestDeep },
-  headerTitleStyle: { fontWeight: '700' as const },
+  headerShadowVisible: false,
+  headerBackTitle: 'Back',
+  headerTitleStyle: { fontWeight: '700' as const, fontSize: 17 },
 };
 
-function CartTabIcon() {
+function CartTabIcon({ color }: { color: string }) {
   const count = useCart(s => s.count());
-  return <Text style={{ fontSize: 20 }}>{count > 0 ? '🛒' : '🛍'}</Text>;
+  return (
+    <View>
+      <AppIcon name="cart" color={color} />
+      {count > 0 ? <View style={styles.cartDot} /> : null}
+    </View>
+  );
 }
 
 function Tabs() {
   return (
     <Tab.Navigator
+      tabBar={props => <FluidTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.forest,
-        tabBarInactiveTintColor: colors.inkMuted,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.line,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
       <Tab.Screen
         name="Home"
         component={HomeScreen}
-        options={{ tabBarIcon: () => <Text style={{ fontSize: 20 }}>🏠</Text> }}
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <AppIcon name="home" color={color} filled={focused} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Doctors"
         component={DoctorsScreen}
         options={{
-          tabBarIcon: () => <Text style={{ fontSize: 20 }}>🩺</Text>,
+          tabBarIcon: ({ color, focused }) => (
+            <AppIcon name="doctor" color={color} filled={focused} />
+          ),
           title: 'Doctors',
         }}
       />
       <Tab.Screen
         name="Cart"
         component={CartScreen}
-        options={{ tabBarIcon: () => <CartTabIcon /> }}
+        options={{ tabBarIcon: ({ color }) => <CartTabIcon color={color} /> }}
       />
       <Tab.Screen
         name="Account"
         component={AccountScreen}
-        options={{ tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text> }}
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <AppIcon name="account" color={color} filled={focused} />
+          ),
+        }}
       />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  cartDot: {
+    position: 'absolute',
+    right: -2,
+    top: -1,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.gold,
+    borderWidth: 1,
+    borderColor: colors.surface,
+  },
+});
 
 export function RootNavigator() {
   return (

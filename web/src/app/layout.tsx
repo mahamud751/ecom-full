@@ -133,8 +133,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${playfair.variable} ${notoBn.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col bg-[var(--ivory)] font-sans text-sm text-[var(--ink)]">
+      <body
+        className="flex min-h-full flex-col bg-[var(--ivory)] font-sans text-sm text-[var(--ink)]"
+        suppressHydrationWarning
+      >
         <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
         <I18nProvider>
           <AuthProvider>

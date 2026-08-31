@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { cn } from "@/lib/utils";
 
 export function ProductGallery({
@@ -28,7 +28,7 @@ export function ProductGallery({
           </span>
         )}
         <div className="relative mx-auto aspect-square max-w-lg overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--ivory)] to-white">
-          <Image
+          <CatalogImage
             src={current}
             alt={name}
             fill
@@ -54,7 +54,7 @@ export function ProductGallery({
                   : "border-[var(--line)] opacity-80 hover:opacity-100"
               )}
             >
-              <Image
+              <CatalogImage
                 src={src}
                 alt=""
                 fill

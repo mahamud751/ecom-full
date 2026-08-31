@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { X, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { useCartStore } from "@/lib/cart-store";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { formatPrice } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -85,7 +85,7 @@ export function CartDrawer() {
                   className="flex gap-3 rounded-2xl border border-border bg-brand-soft/40 p-3"
                 >
                   <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-white">
-                    <Image
+                    <CatalogImage
                       src={item.image}
                       alt={item.name}
                       fill

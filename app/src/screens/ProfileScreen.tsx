@@ -17,6 +17,8 @@ export function ProfileScreen({ navigation }: Props) {
   const [curPw, setCurPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletePw, setDeletePw] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -51,6 +53,34 @@ export function ProfileScreen({ navigation }: Props) {
       Alert.alert('Update failed', apiErrorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  function confirmDelete() {
+    if (!deletePw) {
+      Alert.alert('Password required', 'Enter your password to confirm.');
+      return;
+    }
+    Alert.alert(
+      'Delete account?',
+      'This permanently removes your profile, saved addresses and personal details. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void deleteAccount() },
+      ],
+    );
+  }
+
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await http.delete('/auth/account', { data: { password: deletePw } });
+      await useAuth.getState().logout();
+      navigation.popToTop();
+    } catch (err) {
+      Alert.alert('Could not delete account', apiErrorMessage(err));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -98,6 +128,26 @@ export function ProfileScreen({ navigation }: Props) {
           navigation.popToTop();
         }}
       />
+
+      <Card style={{ padding: 14, marginTop: 24 }}>
+        <Text style={styles.h3}>Delete account</Text>
+        <Text style={styles.dangerHint}>
+          This permanently removes your profile, saved addresses and
+          personal details. This cannot be undone.
+        </Text>
+        <Field
+          label="Confirm your password"
+          value={deletePw}
+          onChangeText={setDeletePw}
+          secureTextEntry
+        />
+        <Button
+          label="Delete my account"
+          variant="danger"
+          loading={deleting}
+          onPress={confirmDelete}
+        />
+      </Card>
     </ScrollView>
   );
 }
@@ -105,4 +155,10 @@ export function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
   h3: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
+  dangerHint: {
+    fontSize: 12.5,
+    color: colors.inkMuted,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
 });

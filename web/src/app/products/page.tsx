@@ -4,6 +4,7 @@ import {
   type ProductCardData,
 } from "@/components/product/ProductCard";
 import Link from "next/link";
+import { CatalogPager } from "@/components/catalog/Pager";
 
 export const dynamic = "force-dynamic";
 
@@ -170,23 +171,11 @@ export default async function ProductsPage({ searchParams }: Props) {
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div className="mt-8 flex justify-center gap-2">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <Link
-                  key={p}
-                  href={buildHref({ page: String(p) })}
-                  className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
-                    p === page
-                      ? "bg-brand text-white"
-                      : "border border-border bg-white hover:border-brand"
-                  }`}
-                >
-                  {p}
-                </Link>
-              ))}
-            </div>
-          )}
+          <CatalogPager
+            page={page}
+            totalPages={totalPages}
+            hrefFor={(p) => buildHref({ page: String(p) })}
+          />
         </div>
       </div>
     </div>

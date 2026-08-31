@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { useI18n } from "@/lib/i18n";
 
 type Props = {
@@ -30,7 +30,7 @@ export function CategoryPageHeader({
       <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-10">
         {image && (
           <div className="relative hidden h-28 w-28 overflow-hidden rounded-3xl shadow-lg sm:block">
-            <Image
+            <CatalogImage
               src={image}
               alt={label}
               fill

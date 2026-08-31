@@ -14,7 +14,7 @@ import {
   statusTone,
 } from '../components/ui';
 import { storage } from '../lib/storage';
-import { colors, formatPrice, radii } from '../theme';
+import { colors, formatPrice } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 

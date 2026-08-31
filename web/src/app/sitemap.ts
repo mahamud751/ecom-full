@@ -32,10 +32,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   try {
-    const { categories, products, doctors } = await apiServer<{
+    const { categories, products, doctors, labTests, labPackages } = await apiServer<{
       categories: { slug: string; updatedAt: string }[];
       products: { slug: string; updatedAt: string }[];
       doctors: { slug: string; updatedAt: string }[];
+      labTests?: { slug: string; updatedAt: string }[];
+      labPackages?: { slug: string; updatedAt: string }[];
     }>("/sitemap");
 
     const categoryRoutes: MetadataRoute.Sitemap = categories.map((c) => ({
@@ -59,11 +61,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
+    const labRoutes: MetadataRoute.Sitemap = [
+      ...(labTests || []).map((t) => ({
+        url: `${base}/lab-test/${t.slug}`,
+        lastModified: t.updatedAt ? new Date(t.updatedAt) : now,
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      })),
+      ...(labPackages || []).map((p) => ({
+        url: `${base}/lab-test/package/${p.slug}`,
+        lastModified: p.updatedAt ? new Date(p.updatedAt) : now,
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      })),
+    ];
+
     return [
       ...staticRoutes,
       ...categoryRoutes,
       ...productRoutes,
       ...doctorRoutes,
+      ...labRoutes,
     ];
   } catch {
     return staticRoutes;

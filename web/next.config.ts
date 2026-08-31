@@ -25,9 +25,12 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ["image/avif", "image/webp"],
+    qualities: [75, 85, 90, 92, 95],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [64, 96, 128, 256, 384, 440],
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    dangerouslyAllowSVG: true,
+    contentDispositionType: "inline",
     remotePatterns: [
       {
         protocol: "https",
@@ -35,7 +38,19 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "cdn2.arogga.com",
+        hostname: "images.openbeautyfacts.org",
+      },
+      {
+        protocol: "https",
+        hostname: "static.openbeautyfacts.org",
+      },
+      {
+        protocol: "https",
+        hostname: "images.openfoodfacts.org",
+      },
+      {
+        protocol: "https",
+        hostname: "static.openfoodfacts.org",
       },
     ],
     localPatterns: [

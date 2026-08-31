@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiFetch } from "@/lib/api-client";
+import { doctorFetch } from "@/lib/api-client";
 import { Plus, Trash2, Loader2, FileText, Check } from "lucide-react";
 
 export type RxItemDraft = {
@@ -49,7 +49,7 @@ export function PrescriptionForm({ consultationId, onSaved }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await apiFetch("/prescriptions", {
+      const res = await doctorFetch("/prescriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

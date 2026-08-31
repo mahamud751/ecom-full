@@ -166,14 +166,14 @@ export class SearchController {
         ...tests.map((t) => ({
           type: "lab" as const,
           label: t.name,
-          href: "/lab-test",
+          href: `/lab-test/${t.slug}`,
           image: t.image,
           meta: `Test · ৳${t.price}`,
         })),
         ...packages.map((p) => ({
           type: "lab" as const,
           label: p.name,
-          href: "/lab-test",
+          href: `/lab-test/package/${p.slug}`,
           image: p.image,
           meta: `Package · ৳${p.price}`,
         })),

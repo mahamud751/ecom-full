@@ -173,13 +173,19 @@ html[data-locale="bn"] body {
   position: relative;
   overflow: hidden;
   background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   aspect-ratio: 1 / 1;
   height: auto;
   border-bottom: 1px solid var(--line);
+}
+
+.product-img-box img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  object-fit: contain;
 }
 
 .product-grid {

@@ -85,7 +85,6 @@ export class ReviewsController {
       rating?: number;
       title?: string;
       body?: string;
-      isVerified?: boolean;
     },
   ) {
     try {
@@ -149,7 +148,7 @@ export class ReviewsController {
           title,
           body: text,
           status: "PENDING",
-          isVerified: Boolean(body?.isVerified),
+          isVerified: false,
         },
       });
 

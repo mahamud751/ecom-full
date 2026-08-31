@@ -81,6 +81,14 @@ export class TokenService {
     }
   }
 
+  /** Revoke every live session for a user (e.g. on account deletion). */
+  async revokeAll(userId: string, role: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, role, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   private hash(token: string): string {
     return createHash("sha256").update(token).digest("hex");
   }

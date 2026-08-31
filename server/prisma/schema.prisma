@@ -335,23 +335,27 @@ model StockMovement {
 // ── Lab ──────────────────────────────────────────────────────────
 
 model LabTest {
-  id           String           @id @default(cuid())
-  name         String
-  slug         String           @unique
-  description  String?
-  image        String?
-  price        Float
-  comparePrice Float?
-  reportHours  Int              @default(24)
-  bookedCount  Int              @default(0)
-  includes     Int              @default(1)
-  category     String?
-  isActive     Boolean          @default(true)
-  sortOrder    Int              @default(0)
-  packageItems LabPackageItem[]
-  bookings     LabBooking[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  description     String?
+  alsoKnownAs     String?
+  sampleType      String?
+  fastingRequired Boolean          @default(false)
+  preparation     String?
+  image           String?
+  price           Float
+  comparePrice    Float?
+  reportHours     Int              @default(24)
+  bookedCount     Int              @default(0)
+  includes        Int              @default(1)
+  category        String?
+  isActive        Boolean          @default(true)
+  sortOrder       Int              @default(0)
+  packageItems    LabPackageItem[]
+  bookings        LabBooking[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([isActive])
   @@index([category])

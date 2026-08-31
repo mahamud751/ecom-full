@@ -1,6 +1,8 @@
-/** Search with live suggestions + grouped results. */
+/** Search with live suggestions + grouped results, incl. image search. */
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -9,8 +11,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {
+  launchCamera,
+  launchImageLibrary,
+  type Asset,
+} from 'react-native-image-picker';
 import { http } from '../api/client';
 import { mediaUrl } from '../config';
+import { AppIcon } from '../components/AppIcon';
 import { EmptyView, Loading } from '../components/ui';
 import { colors, formatPrice, radii } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -43,6 +51,9 @@ export function SearchScreen({ navigation }: Props) {
   const [sugs, setSugs] = useState<Suggestion[]>([]);
   const [searching, setSearching] = useState(false);
   const [showSugs, setShowSugs] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageTip, setImageTip] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Live suggestions (debounced)
@@ -71,6 +82,8 @@ export function SearchScreen({ navigation }: Props) {
     const query = term.trim();
     if (!query) return;
     setQ(query);
+    setImagePreview(null);
+    setImageTip(null);
     setShowSugs(false);
     setSearching(true);
     try {
@@ -81,6 +94,66 @@ export function SearchScreen({ navigation }: Props) {
     } finally {
       setSearching(false);
     }
+  }
+
+  async function searchByImage(asset: Asset) {
+    if (!asset.uri) return;
+    setShowSugs(false);
+    setImagePreview(asset.uri);
+    setUploadingImage(true);
+    setSearching(true);
+    try {
+      const fd = new FormData();
+      // React Native's FormData accepts this file-shape object for uploads.
+      fd.append('file', {
+        uri: asset.uri,
+        type: asset.type || 'image/jpeg',
+        name: asset.fileName || 'photo.jpg',
+      } as unknown as Blob);
+      fd.append('hub', 'all');
+      if (q.trim()) fd.append('hint', q.trim());
+
+      const res = await http.post('/search/image', fd);
+      setHits(res.data.hits ?? []);
+      setImageTip(res.data.tip ?? null);
+      if (res.data.derivedQuery) setQ(res.data.derivedQuery);
+    } catch (err) {
+      setHits([]);
+      const message =
+        (err as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || 'Image search failed. Please try again.';
+      Alert.alert('Image search', message);
+    } finally {
+      setUploadingImage(false);
+      setSearching(false);
+    }
+  }
+
+  function pickImage() {
+    Alert.alert('Search by image', 'Take a photo or choose one to match against our catalog.', [
+      {
+        text: 'Take Photo',
+        onPress: () =>
+          launchCamera({ mediaType: 'photo', quality: 0.8 }, res => {
+            const asset = res.assets?.[0];
+            if (asset) void searchByImage(asset);
+          }),
+      },
+      {
+        text: 'Choose from Gallery',
+        onPress: () =>
+          launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, res => {
+            const asset = res.assets?.[0];
+            if (asset) void searchByImage(asset);
+          }),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  function clearImage() {
+    setImagePreview(null);
+    setImageTip(null);
   }
 
   function openHit(hit: Hit) {
@@ -104,10 +177,39 @@ export function SearchScreen({ navigation }: Props) {
           onSubmitEditing={() => void search(q)}
           style={styles.input}
         />
+        <Pressable
+          onPress={pickImage}
+          style={styles.cameraBtn}
+          hitSlop={6}
+          accessibilityLabel="Search by image"
+        >
+          <AppIcon name="camera" color={colors.forestMid} size={19} />
+        </Pressable>
         <Pressable onPress={() => void search(q)} style={styles.goBtn}>
           <Text style={styles.goText}>Search</Text>
         </Pressable>
       </View>
+
+      {imagePreview ? (
+        <View style={styles.imgPreviewRow}>
+          <Image source={{ uri: imagePreview }} style={styles.imgPreview} />
+          <View style={{ flex: 1 }}>
+            {uploadingImage ? (
+              <View style={styles.imgUploadingRow}>
+                <ActivityIndicator size="small" color={colors.forest} />
+                <Text style={styles.imgTip}>Searching catalog from your image…</Text>
+              </View>
+            ) : imageTip ? (
+              <Text style={styles.imgTip} numberOfLines={2}>
+                {imageTip}
+              </Text>
+            ) : null}
+          </View>
+          <Pressable onPress={clearImage} hitSlop={8}>
+            <Text style={styles.imgClear}>Clear</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {showSugs && sugs.length > 0 ? (
         <View style={styles.sugList}>
@@ -207,6 +309,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   goText: { color: colors.white, fontWeight: '700', fontSize: 13 },
+  cameraBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imgPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 12,
+    marginBottom: 10,
+    padding: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  imgPreview: { width: 44, height: 44, borderRadius: 8 },
+  imgUploadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  imgTip: { fontSize: 12, color: colors.inkMuted, flexShrink: 1 },
+  imgClear: { fontSize: 12.5, fontWeight: '700', color: colors.danger },
   sugList: {
     marginHorizontal: 12,
     backgroundColor: colors.surface,

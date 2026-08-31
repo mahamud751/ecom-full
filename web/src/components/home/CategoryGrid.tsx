@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { useI18n } from "@/lib/i18n";
 
 export type CategoryData = {
@@ -44,7 +44,7 @@ export function CategoryGrid({ categories }: { categories: CategoryData[] }) {
                 style={{ backgroundColor: c.color || "#F5FDFC" }}
               >
                 {c.image && (
-                  <Image
+                  <CatalogImage
                     src={c.image}
                     alt={name}
                     fill
@@ -76,7 +76,7 @@ export function CategoryGrid({ categories }: { categories: CategoryData[] }) {
                 style={{ backgroundColor: c.color || "#F5FDFC" }}
               >
                 {c.image && (
-                  <Image
+                  <CatalogImage
                     src={c.image}
                     alt={name}
                     fill

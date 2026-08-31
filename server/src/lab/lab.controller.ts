@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, NotFoundException, Param, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApiError, makeRefNumber } from "../common/utils";
@@ -28,6 +28,50 @@ export class LabController {
       console.error(e);
       throw new ApiError(500, "Failed");
     }
+  }
+
+  @Get("tests/:slug")
+  @ApiOperation({ summary: "Lab test detail by slug" })
+  async testBySlug(@Param("slug") slug: string) {
+    const test = await this.prisma.labTest.findUnique({ where: { slug } });
+    if (!test || !test.isActive) throw new NotFoundException("Test not found");
+    let related = await this.prisma.labTest.findMany({
+      where: {
+        isActive: true,
+        id: { not: test.id },
+        ...(test.category ? { category: test.category } : {}),
+      },
+      orderBy: { bookedCount: "desc" },
+      take: 6,
+    });
+    if (related.length < 4) {
+      const extra = await this.prisma.labTest.findMany({
+        where: {
+          isActive: true,
+          id: { notIn: [test.id, ...related.map((r) => r.id)] },
+        },
+        orderBy: { bookedCount: "desc" },
+        take: 6 - related.length,
+      });
+      related = [...related, ...extra];
+    }
+    return { test, related };
+  }
+
+  @Get("packages/:slug")
+  @ApiOperation({ summary: "Lab package detail by slug" })
+  async packageBySlug(@Param("slug") slug: string) {
+    const pkg = await this.prisma.labPackage.findUnique({
+      where: { slug },
+      include: { items: { include: { test: true } } },
+    });
+    if (!pkg || !pkg.isActive) throw new NotFoundException("Package not found");
+    const related = await this.prisma.labPackage.findMany({
+      where: { isActive: true, id: { not: pkg.id } },
+      orderBy: { sortOrder: "asc" },
+      take: 4,
+    });
+    return { package: pkg, related };
   }
 
   @Post()

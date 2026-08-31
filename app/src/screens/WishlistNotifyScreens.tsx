@@ -20,7 +20,7 @@ import {
   Loading,
 } from '../components/ui';
 import { useWishlist } from '../store/wishlist';
-import { colors, formatPrice, radii } from '../theme';
+import { colors, formatPrice } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 

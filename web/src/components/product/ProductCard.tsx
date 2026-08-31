@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Star, Check, Plus, Rocket, Bell } from "lucide-react";
 import { useState } from "react";
 import { useCartStore } from "@/lib/cart-store";
 import { WishlistButton } from "@/components/product/WishlistButton";
 import { NotifyButton } from "@/components/product/NotifyButton";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { discountPercent, cn, isLocalMedia } from "@/lib/utils";
 import { toast } from "@/components/ui/Toast";
 import { useI18n } from "@/lib/i18n";
@@ -114,16 +114,16 @@ export function ProductCard({ product, variant = "carousel" }: Props) {
               className="absolute right-2 top-2 z-10"
             />
             {src ? (
-              <Image
+              <CatalogImage
                 src={src}
                 alt={product.name}
-                width={480}
-                height={480}
+                fill
                 quality={90}
-                unoptimized={isLocalMedia(src)}
-                onError={() => setImgError(true)}
+                onError={() => {
+                  if (!isLocalMedia(src)) setImgError(true);
+                }}
                 className={cn(
-                  "h-full w-full object-contain p-3 transition-transform duration-300 ease-out group-hover:scale-105",
+                  "object-contain p-3 transition-transform duration-300 ease-out group-hover:scale-105",
                   outOfStock && "opacity-50 grayscale"
                 )}
                 sizes={
@@ -272,13 +272,12 @@ function CardStockRequest({
       >
         <div className="mb-3 flex items-center gap-3">
           <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-[var(--ivory)]">
-            <Image
+            <CatalogImage
               src={product.image}
               alt=""
               fill
               className="object-contain p-1"
               sizes="56px"
-              unoptimized={isLocalMedia(product.image)}
             />
           </div>
           <div>

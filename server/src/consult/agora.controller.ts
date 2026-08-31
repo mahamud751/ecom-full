@@ -1,8 +1,10 @@
-import { Body, Controller, Post } from "@nestjs/common";
+import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApiError } from "../common/utils";
 import { buildRtcToken } from "./agora";
+import { AuthUser, JwtAuthGuard, OptionalAuth } from "../auth/jwt-auth.guard";
+import { CurrentUser } from "../auth/current-user.decorator";
 
 @ApiTags("agora")
 @Controller("agora")
@@ -10,6 +12,8 @@ export class AgoraController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Post("token")
+  @UseGuards(JwtAuthGuard)
+  @OptionalAuth()
   @ApiOperation({ summary: "Issue an Agora RTC token for a consult channel" })
   async token(
     @Body()
@@ -17,6 +21,7 @@ export class AgoraController {
       consultationId?: string;
       role?: "patient" | "doctor";
     },
+    @CurrentUser() session?: AuthUser,
   ) {
     try {
       const { consultationId, role = "patient" } = body || {};
@@ -34,6 +39,18 @@ export class AgoraController {
 
       if (!consultation) {
         throw new ApiError(404, "Consultation not found");
+      }
+
+      if (
+        role === "doctor" &&
+        (!session ||
+          session.role !== "DOCTOR" ||
+          session.sub !== consultation.doctorId)
+      ) {
+        throw new ApiError(
+          401,
+          "Only the assigned doctor may join as doctor",
+        );
       }
 
       if (["CANCELLED", "COMPLETED"].includes(consultation.status)) {

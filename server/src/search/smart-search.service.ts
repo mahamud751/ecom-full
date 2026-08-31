@@ -267,7 +267,7 @@ export class SmartSearchService {
             subtitle: `${t.category || "Lab test"} · report ${t.reportHours}h`,
             image: t.image,
             price: t.price,
-            href: "/lab-test",
+            href: `/lab-test/${t.slug}`,
             score,
             badges: ["Test"],
           });
@@ -287,7 +287,7 @@ export class SmartSearchService {
             subtitle: `Package · report ${p.reportHours}h`,
             image: p.image,
             price: p.price,
-            href: "/lab-test",
+            href: `/lab-test/package/${p.slug}`,
             score,
             badges: ["Package"],
           });

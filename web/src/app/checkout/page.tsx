@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState, FormEvent } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { useCartStore } from "@/lib/cart-store";
 import { useOrdersStore } from "@/lib/orders-store";
 import { formatPrice } from "@/lib/utils";
@@ -419,7 +419,7 @@ export default function CheckoutPage() {
               {items.map((item) => (
                 <div key={item.id} className="flex gap-3">
                   <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-brand-soft">
-                    <Image
+                    <CatalogImage
                       src={item.image}
                       alt={item.name}
                       fill

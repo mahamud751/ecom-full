@@ -12,11 +12,17 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:import-medicines": "tsx scripts/import-medicines.ts",
+    "db:pack-images": "tsx scripts/generate-pack-images.ts",
+    "db:import-beauty": "tsx scripts/import-beauty.ts",
+    "db:import-food": "tsx scripts/import-food.ts",
+    "db:import-devices": "tsx scripts/import-devices.ts",
+    "db:mirror-images": "tsx scripts/mirror-open-images.ts",
+    "db:rasterize-packs": "tsx scripts/rasterize-pack-images.ts",
+    "db:medicine-photos": "tsx scripts/apply-medicine-photos.ts",
+    "db:enrich-lab": "tsx scripts/enrich-lab.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
     "postinstall": "prisma generate"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.3",
@@ -33,7 +39,7 @@
     "dotenv": "^17.4.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.7",

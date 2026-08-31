@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   Image,
   Pressable,
   ScrollView,
@@ -19,6 +20,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootParamList, 'ProductDetail'>;
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export function ProductDetailScreen({ navigation, route }: Props) {
   const { slug } = route.params;
@@ -215,7 +218,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  hero: { width: '100%', height: 340 },
+  hero: { width: SCREEN_WIDTH, height: 340 },
   body: { padding: 16 },
   rowBetween: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   name: { fontSize: 20, fontWeight: '800', color: colors.ink, lineHeight: 26 },

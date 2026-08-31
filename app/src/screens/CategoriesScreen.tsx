@@ -1,7 +1,8 @@
 /** Categories browser (hubs + categories). */
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { http, apiErrorMessage } from '../api/client';
+import { mediaUrl } from '../config';
 import { ErrorView, Loading } from '../components/ui';
 import { colors, radii } from '../theme';
 import type { Category } from '../types';
@@ -67,7 +68,13 @@ export function CategoriesScreen({ navigation }: Props) {
               })
             }
           >
-            <Text style={styles.catIcon}>{c.icon || '🌿'}</Text>
+            <View style={styles.catIconWrap}>
+              {c.image ? (
+                <Image source={{ uri: mediaUrl(c.image) }} style={styles.catImage} />
+              ) : (
+                <Text style={styles.catIcon}>{c.icon || '🌿'}</Text>
+              )}
+            </View>
             <Text numberOfLines={2} style={styles.catName}>
               {c.name}
             </Text>
@@ -108,6 +115,16 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
   },
+  catIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.brandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  catImage: { width: 44, height: 44 },
   catIcon: { fontSize: 22 },
   catName: {
     fontSize: 11.5,

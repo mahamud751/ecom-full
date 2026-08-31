@@ -1,0 +1,14 @@
+Assorted Medicine Dataset of Bangladesh
+License: CC0 public domain
+Files: medicine.csv (~21.7k brands), generic.csv (~1.7k generics)
+Mirror: https://huggingface.co/datasets/ArnobBot/Medicine-Dataset-of-Bangladesh
+Kaggle: https://www.kaggle.com/datasets/ahmedshahriarsakib/assorted-medicine-dataset-of-bangladesh
+Import: from server/ run `npm run db:import-medicines`
+Do not scrape Arogga / Lazz Pharma / MedEasy / DocTime / Daraz / Shajgoj catalogs.
+
+Other licensed catalog sources (from server/):
+  npm run db:import-beauty    Open Beauty Facts (ODbL) + local pack photos
+  npm run db:import-food      Open Food Facts (ODbL) + local pack photos
+  npm run db:import-devices   original medical-device SKUs + generated pack art
+  npm run db:mirror-images    copy remote Open Facts photos into /uploads
+  npm run db:pack-images      SVG packs for Bangladesh medicines

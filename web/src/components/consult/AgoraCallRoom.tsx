@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, doctorFetch } from "@/lib/api-client";
 import {
   Mic,
   MicOff,
@@ -105,7 +105,8 @@ export function AgoraCallRoom({
       setDebug("");
 
       try {
-        const res = await apiFetch("/agora/token", {
+        const fetchToken = role === "doctor" ? doctorFetch : apiFetch;
+        const res = await fetchToken("/agora/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ consultationId, role }),

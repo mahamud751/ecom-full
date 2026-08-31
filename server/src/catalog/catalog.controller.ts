@@ -28,9 +28,17 @@ export class CatalogController {
   }
 
   @Get("categories/:slug")
-  @ApiOperation({ summary: "Category by slug with its products" })
-  category(@Param("slug") slug: string) {
-    return this.catalog.getCategoryBySlug(slug);
+  @ApiOperation({ summary: "Category by slug with paginated products" })
+  @ApiQuery({ name: "page", required: false })
+  @ApiQuery({ name: "sort", required: false })
+  @ApiQuery({ name: "perPage", required: false })
+  category(
+    @Param("slug") slug: string,
+    @Query("page") page?: string,
+    @Query("sort") sort?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    return this.catalog.getCategoryBySlug(slug, { page, sort, perPage });
   }
 
   @Get("brands")

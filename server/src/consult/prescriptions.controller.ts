@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApiError } from "../common/utils";
+import { AuthUser, JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
+import { CurrentUser } from "../auth/current-user.decorator";
 
 type RxItemInput = {
   medicineName: string;
@@ -17,6 +19,8 @@ export class PrescriptionsController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
+  @Roles("DOCTOR")
   @ApiOperation({
     summary: "Create/update prescription for a consult (completes it)",
   })
@@ -29,6 +33,7 @@ export class PrescriptionsController {
       followUp?: string;
       items: RxItemInput[];
     },
+    @CurrentUser() session?: AuthUser,
   ) {
     try {
       const { consultationId, diagnosis, advice, followUp, items } =
@@ -47,6 +52,13 @@ export class PrescriptionsController {
 
       if (!consultation) {
         throw new ApiError(404, "Consultation not found");
+      }
+
+      if (session?.sub !== consultation.doctorId) {
+        throw new ApiError(
+          403,
+          "Only the assigned doctor may write this prescription",
+        );
       }
 
       const cleanItems = (items || [])

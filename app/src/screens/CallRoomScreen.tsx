@@ -42,7 +42,7 @@ export function CallRoomScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('Connecting…');
   const [remoteUid, setRemoteUid] = useState<number | undefined>(undefined);
-  const [joined, setJoined] = useState(false);
+  const [, setJoined] = useState(false);
   const [micOn, setMicOn] = useState(true);
 
   useEffect(() => {

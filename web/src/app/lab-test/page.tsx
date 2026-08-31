@@ -18,16 +18,21 @@ export default async function LabTestPage() {
     tests: {
       id: string;
       name: string;
+      slug: string;
       image: string | null;
       category: string | null;
       reportHours: number;
       bookedCount: number;
       price: number;
       comparePrice: number | null;
+      fastingRequired: boolean;
+      sampleType: string | null;
     }[];
     packages: {
       id: string;
       name: string;
+      slug: string;
+      description: string | null;
       reportHours: number;
       price: number;
       comparePrice: number | null;
@@ -85,28 +90,31 @@ export default async function LabTestPage() {
               key={t.id}
               className="flex flex-col rounded-2xl border border-[var(--line)] bg-white p-4 shadow-sm"
             >
-              <div className="flex gap-3">
+              <Link href={`/lab-test/${t.slug}`} className="flex gap-3">
                 {t.image && (
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[var(--brand-soft)]">
                     <Image
                       src={t.image}
                       alt={t.name}
                       fill
-                      className="object-cover"
+                      className="object-contain p-1"
                       sizes="64px"
+                      unoptimized={t.image.startsWith("/uploads/")}
                     />
                   </div>
                 )}
                 <div>
-                  <h3 className="font-bold">{t.name}</h3>
+                  <h3 className="font-bold hover:text-[var(--forest)]">{t.name}</h3>
                   <p className="text-xs text-[var(--ink-muted)]">
-                    {t.category || "Lab"} · Report in {t.reportHours}h
+                    {t.category || "Lab"} · {t.sampleType || "Sample"} · Report in{" "}
+                    {t.reportHours}h
+                    {t.fastingRequired ? " · Fasting" : ""}
                   </p>
                   <p className="text-[10px] text-[var(--ink-muted)]">
-                    {t.bookedCount.toLocaleString()}+ booked
+                    {t.bookedCount.toLocaleString()}+ booked · View details
                   </p>
                 </div>
-              </div>
+              </Link>
               <div className="mt-3 flex items-end justify-between border-t border-[var(--line)] pt-3">
                 <div>
                   <p className="text-lg font-bold">{formatPrice(t.price)}</p>
@@ -140,13 +148,17 @@ export default async function LabTestPage() {
               key={p.id}
               className="rounded-2xl border border-[var(--line)] bg-white p-5 shadow-sm"
             >
-              <h3 className="font-bold text-[var(--ink)]">{p.name}</h3>
-              <p className="mt-1 text-xs text-[var(--ink-muted)]">
-                {p.items.length} tests · Report in {p.reportHours}h
-              </p>
-              <p className="mt-2 line-clamp-2 text-xs text-[var(--ink-muted)]">
-                {p.items.map((i) => i.test.name).join(", ")}
-              </p>
+              <Link href={`/lab-test/package/${p.slug}`}>
+                <h3 className="font-bold text-[var(--ink)] hover:text-[var(--forest)]">
+                  {p.name}
+                </h3>
+                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                  {p.items.length} tests · Report in {p.reportHours}h · View details
+                </p>
+                <p className="mt-2 line-clamp-2 text-xs text-[var(--ink-muted)]">
+                  {p.items.map((i) => i.test.name).join(", ")}
+                </p>
+              </Link>
               <div className="mt-4 flex items-end justify-between">
                 <div>
                   <p className="text-xl font-bold text-[var(--forest)]">

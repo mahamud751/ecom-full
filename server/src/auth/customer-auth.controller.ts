@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CustomerAuthService } from "./customer-auth.service";
 import { CurrentUser } from "./current-user.decorator";
@@ -66,5 +66,16 @@ export class CustomerAuthController {
     @Body() body: Record<string, unknown>,
   ) {
     return this.auth.updateProfile(user.sub, body);
+  }
+
+  @Delete("account")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Delete the current customer's account" })
+  deleteAccount(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { password?: string },
+  ) {
+    return this.auth.deleteAccount(user.sub, body?.password || "");
   }
 }

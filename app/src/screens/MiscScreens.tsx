@@ -249,7 +249,7 @@ const INFO_CONTENT: Record<
       'We collect only what we need to serve you: name, phone, address, and order/consult history.',
       'Health information shared during consultations is visible only to the consulting doctor and our licensed pharmacist.',
       'We never sell your personal data. Delivery partners see only what they need to deliver.',
-      'You may request deletion of your account data by contacting support.',
+      'You can delete your account and personal data any time from Account → Profile → Delete account, or by contacting support.',
     ],
   },
   compliance: {

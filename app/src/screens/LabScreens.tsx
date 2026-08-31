@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +10,7 @@ import {
 import { http, apiErrorMessage } from '../api/client';
 import { Button, Card, ErrorView, Field, Loading } from '../components/ui';
 import { useAuth } from '../store/auth';
-import { colors, discountPercent, formatPrice, radii } from '../theme';
+import { colors, discountPercent, formatPrice } from '../theme';
 import type { LabPackage, LabTest } from '../types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';

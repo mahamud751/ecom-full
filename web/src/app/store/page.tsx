@@ -3,14 +3,13 @@ import {
   ProductCard,
   type ProductCardData,
 } from "@/components/product/ProductCard";
-import Link from "next/link";
 import { premiumImg } from "@/lib/nav-data";
 import { StoreChrome } from "@/components/catalog/StoreChrome";
 import {
   StoreEmptyState,
-  StorePageLabel,
   StoreShowing,
 } from "@/components/catalog/StoreGridLabels";
+import { CatalogPager } from "@/components/catalog/Pager";
 
 export const dynamic = "force-dynamic";
 
@@ -109,39 +108,11 @@ export default async function StorePage({ searchParams }: Props) {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-8 flex flex-wrap justify-center gap-2">
-          {page > 1 && (
-            <Link
-              href={buildHref({ page: String(page - 1) })}
-              className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold hover:border-[var(--forest)]"
-            >
-              <StorePageLabel kind="prev" />
-            </Link>
-          )}
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <Link
-              key={p}
-              href={buildHref({ page: String(p) })}
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
-                p === page
-                  ? "bg-[var(--forest-deep)] text-white"
-                  : "border border-[var(--line)] bg-white hover:border-[var(--forest)]"
-              }`}
-            >
-              {p}
-            </Link>
-          ))}
-          {page < totalPages && (
-            <Link
-              href={buildHref({ page: String(page + 1) })}
-              className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold hover:border-[var(--forest)]"
-            >
-              <StorePageLabel kind="next" />
-            </Link>
-          )}
-        </div>
-      )}
+      <CatalogPager
+        page={page}
+        totalPages={totalPages}
+        hrefFor={(p) => buildHref({ page: String(p) })}
+      />
     </StoreChrome>
   );
 }

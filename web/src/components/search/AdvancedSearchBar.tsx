@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, FormEvent } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { useRouter, usePathname } from "next/navigation";
-import Image from "next/image";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import {
   Search,
   Mic,
@@ -32,6 +32,36 @@ type SuggestItem = {
   image: string | null;
   meta?: string;
 };
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    0: { transcript: string };
+    isFinal: boolean;
+  }>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognition(): SpeechRecognitionConstructor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const speechWindow = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+}
 
 type Props = {
   className?: string;
@@ -71,18 +101,11 @@ export function AdvancedSearchBar({
   const [openSug, setOpenSug] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recogRef = useRef<any>(null);
+  const recogRef = useRef<SpeechRecognitionLike | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const SR =
-      typeof window !== "undefined"
-        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).SpeechRecognition ||
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).webkitSpeechRecognition
-        : null;
+    const SR = getSpeechRecognition();
     setVoiceSupported(Boolean(SR));
   }, []);
 
@@ -144,10 +167,7 @@ export function AdvancedSearchBar({
 
   function toggleVoice() {
     setError(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+    const SR = getSpeechRecognition();
     if (!SR) {
       setError(t("search.voiceUnsupported"));
       return;
@@ -164,8 +184,7 @@ export function AdvancedSearchBar({
     recog.interimResults = true;
     recog.continuous = false;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recog.onresult = (event: any) => {
+    recog.onresult = (event) => {
       let transcript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
@@ -177,8 +196,7 @@ export function AdvancedSearchBar({
         if (finalText) goSearch(finalText, { mode: "voice" });
       }
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recog.onerror = (ev: any) => {
+    recog.onerror = (ev) => {
       setListening(false);
       if (ev.error !== "aborted") {
         setError(t("search.micBlocked"));
@@ -414,16 +432,12 @@ export function AdvancedSearchBar({
               >
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[var(--brand-soft)]">
                   {s.image ? (
-                    <Image
+                    <CatalogImage
                       src={s.image}
                       alt=""
                       fill
                       className="object-cover"
                       sizes="40px"
-                      unoptimized={
-                        s.image.startsWith("/uploads/") ||
-                        s.image.startsWith("/brand/")
-                      }
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center">

@@ -246,7 +246,9 @@ export default async function ProductDetailPage({ params }: Props) {
         {/* Description */}
         <div className="mt-10 rounded-3xl border border-border bg-white p-6 shadow-sm sm:p-8">
           <h2 className="mb-4 text-xl font-bold">Product Details</h2>
-          <p className="leading-relaxed text-muted">{product.description}</p>
+          <p className="whitespace-pre-wrap leading-relaxed text-muted">
+            {product.description}
+          </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-brand-soft px-4 py-3 text-sm">
               <span className="text-muted">Category: </span>

@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { TokenService } from "./token.service";
 import type { JwtPayload } from "./jwt-auth.guard";
@@ -287,5 +288,44 @@ export class CustomerAuthService {
     });
 
     return { success: true, user: toPublicUser(updated) };
+  }
+
+  /**
+   * Account deletion (Play/App Store policy requirement). Orders are kept
+   * for accounting/legal record-keeping, so this scrubs personal data and
+   * deactivates the account rather than hard-deleting the row.
+   */
+  async deleteAccount(userId: string, password: string) {
+    const existing = await this.prisma.customer.findUnique({
+      where: { id: userId },
+    });
+    if (!existing) throw new NotFoundException("User not found");
+
+    const ok = await verifyPassword(password || "", existing.password);
+    if (!ok) {
+      throw new BadRequestException("Password is incorrect");
+    }
+
+    await this.prisma.customer.update({
+      where: { id: userId },
+      data: {
+        email: `deleted-${userId}@ahona.deleted`,
+        name: "Deleted user",
+        phone: null,
+        avatarUrl: null,
+        gender: null,
+        dateOfBirth: null,
+        address: null,
+        city: null,
+        area: null,
+        postalCode: null,
+        password: await bcrypt.hash(randomBytes(24).toString("hex"), 10),
+        isActive: false,
+      },
+    });
+
+    await this.tokens.revokeAll(userId, "CUSTOMER");
+
+    return { success: true };
   }
 }

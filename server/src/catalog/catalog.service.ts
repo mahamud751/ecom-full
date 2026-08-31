@@ -30,6 +30,8 @@ export class CatalogService {
       himalaya,
       flashSale,
       featured,
+      beautyPicks,
+      foodPicks,
       allDoctors,
     ] = await Promise.all([
       this.prisma.banner.findMany({
@@ -41,28 +43,40 @@ export class CatalogService {
         take: 12,
       }),
       this.prisma.product.findMany({
-        where: { section: "skino-deals" },
+        where: { section: "skino-deals", isActive: true, image: { startsWith: "/uploads/" } },
         include: { brand: true },
         take: 10,
         orderBy: { reviewCount: "desc" },
       }),
       this.prisma.product.findMany({
-        where: { section: "himalaya" },
+        where: { section: "himalaya", isActive: true, image: { startsWith: "/uploads/" } },
         include: { brand: true },
         take: 10,
         orderBy: { reviewCount: "desc" },
       }),
       this.prisma.product.findMany({
-        where: { isFlashSale: true },
+        where: { isFlashSale: true, isActive: true, image: { startsWith: "/uploads/" } },
         include: { brand: true },
         take: 10,
         orderBy: { comparePrice: "desc" },
       }),
       this.prisma.product.findMany({
-        where: { isFeatured: true },
+        where: { isFeatured: true, isActive: true, image: { startsWith: "/uploads/" } },
         include: { brand: true },
         take: 10,
         orderBy: { rating: "desc" },
+      }),
+      this.prisma.product.findMany({
+        where: { sku: { startsWith: "OBF-" }, isActive: true },
+        include: { brand: true },
+        take: 10,
+        orderBy: { reviewCount: "desc" },
+      }),
+      this.prisma.product.findMany({
+        where: { sku: { startsWith: "OFF-" }, isActive: true },
+        include: { brand: true },
+        take: 10,
+        orderBy: { reviewCount: "desc" },
       }),
       this.doctors.listDoctors().catch(() => []),
     ]);
@@ -74,6 +88,8 @@ export class CatalogService {
       himalaya,
       flashSale,
       featured,
+      beautyPicks,
+      foodPicks,
       doctors: allDoctors.slice(0, 5).map((d) => ({
         id: d.id,
         slug: d.slug,
@@ -91,14 +107,14 @@ export class CatalogService {
 
   /** Sitemap payload — slugs + updatedAt for categories/products/doctors */
   async sitemap() {
-    const [categories, products, doctors] = await Promise.all([
+    const [categories, products, doctors, labTests, labPackages] = await Promise.all([
       this.prisma.category.findMany({
         select: { slug: true, updatedAt: true },
         orderBy: { sortOrder: "asc" },
       }),
       this.prisma.product.findMany({
+        where: { isActive: true },
         select: { slug: true, updatedAt: true },
-        take: 2000,
         orderBy: { updatedAt: "desc" },
       }),
       this.prisma.doctor
@@ -107,27 +123,41 @@ export class CatalogService {
           where: { isActive: true },
         })
         .catch(() => [] as { slug: string; updatedAt: Date }[]),
+      this.prisma.labTest.findMany({
+        where: { isActive: true },
+        select: { slug: true, updatedAt: true },
+      }),
+      this.prisma.labPackage.findMany({
+        where: { isActive: true },
+        select: { slug: true, updatedAt: true },
+      }),
     ]);
-    return { categories, products, doctors };
+    return { categories, products, doctors, labTests, labPackages };
   }
 
   async listCategories() {
     return this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
   }
 
-  async getCategoryBySlug(slug: string) {
+  async getCategoryBySlug(slug: string, params?: ProductListQuery) {
     const category = await this.prisma.category.findUnique({
       where: { slug },
     });
     if (!category) throw new NotFoundException("Category not found");
 
-    const products = await this.prisma.product.findMany({
-      where: { categoryId: category.id },
-      include: { brand: true },
-      orderBy: { reviewCount: "desc" },
+    const listing = await this.listProducts({
+      ...params,
+      category: slug,
     });
 
-    return { category, products };
+    return {
+      category,
+      products: listing.products,
+      total: listing.total,
+      page: listing.page,
+      perPage: listing.perPage,
+      totalPages: listing.totalPages,
+    };
   }
 
   async listBrands() {
@@ -146,7 +176,7 @@ export class CatalogService {
     const page = Math.max(1, Number(params.page) || 1);
     const perPage = Math.min(48, Math.max(1, Number(params.perPage) || 24));
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { isActive: true };
     if (params.flash === "1") where.isFlashSale = true;
     if (params.section) where.section = params.section;
     if (params.category) where.category = { slug: params.category };
@@ -162,7 +192,8 @@ export class CatalogService {
       where.price = price;
     }
 
-    let orderBy: Record<string, string> = { reviewCount: "desc" };
+    let orderBy: Record<string, string> = { createdAt: "desc" };
+    if (params.sort === "popular") orderBy = { reviewCount: "desc" };
     if (params.sort === "price-asc") orderBy = { price: "asc" };
     if (params.sort === "price-desc") orderBy = { price: "desc" };
     if (params.sort === "rating") orderBy = { rating: "desc" };
@@ -217,14 +248,37 @@ export class CatalogService {
     });
     if (!product) throw new NotFoundException("Product not found");
 
-    const related = await this.prisma.product.findMany({
+    const genericTags = (product.tags || []).filter(
+      (t) => t.length > 3 && t !== "medicine" && t !== product.brand?.name?.toLowerCase(),
+    ).slice(0, 4);
+
+    let related = await this.prisma.product.findMany({
       where: {
         categoryId: product.categoryId,
         id: { not: product.id },
+        isActive: true,
+        OR: [
+          ...(genericTags.length ? [{ tags: { hasSome: genericTags } }] : []),
+          ...(product.brandId ? [{ brandId: product.brandId }] : []),
+        ],
       },
       include: { brand: true },
-      take: 5,
+      take: 8,
+      orderBy: { reviewCount: "desc" },
     });
+    if (related.length < 5) {
+      const extra = await this.prisma.product.findMany({
+        where: {
+          categoryId: product.categoryId,
+          id: { notIn: [product.id, ...related.map((r) => r.id)] },
+          isActive: true,
+        },
+        include: { brand: true },
+        take: 8 - related.length,
+        orderBy: { createdAt: "desc" },
+      });
+      related = [...related, ...extra];
+    }
 
     return { product, related };
   }

@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { apiFetch } from "@/lib/api-client";
 import Link from "next/link";
+import { CatalogImage } from "@/components/product/CatalogImage";
 import { useCallback, useEffect, useState } from "react";
 import {
   Heart,
@@ -240,13 +240,12 @@ export default function WishlistPage() {
                   href={`/products/${item.slug}`}
                   className="relative mx-auto h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-[var(--ivory)] sm:mx-0 sm:h-24 sm:w-24"
                 >
-                  <Image
+                  <CatalogImage
                     src={item.image}
                     alt={item.name}
                     fill
                     className="object-contain p-1"
                     sizes="112px"
-                    unoptimized={item.image.startsWith("/uploads/")}
                   />
                   {!inStock && (
                     <span className="absolute inset-x-0 bottom-0 bg-red-600/90 py-0.5 text-center text-[9px] font-bold text-white">
