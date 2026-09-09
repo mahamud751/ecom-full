@@ -1,10 +1,12 @@
 /** Search with live suggestions + grouped results, incl. image search. */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +18,10 @@ import {
   launchImageLibrary,
   type Asset,
 } from 'react-native-image-picker';
+import Voice, {
+  type SpeechErrorEvent,
+  type SpeechResultsEvent,
+} from '@react-native-voice/voice';
 import { http } from '../api/client';
 import { mediaUrl } from '../config';
 import { AppIcon } from '../components/AppIcon';
@@ -54,6 +60,7 @@ export function SearchScreen({ navigation }: Props) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageTip, setImageTip] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [listening, setListening] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Live suggestions (debounced)
@@ -78,7 +85,7 @@ export function SearchScreen({ navigation }: Props) {
     };
   }, [q]);
 
-  async function search(term: string) {
+  const search = useCallback(async (term: string, mode: 'text' | 'voice' = 'text') => {
     const query = term.trim();
     if (!query) return;
     setQ(query);
@@ -87,12 +94,77 @@ export function SearchScreen({ navigation }: Props) {
     setShowSugs(false);
     setSearching(true);
     try {
-      const res = await http.get('/search', { params: { q: query } });
+      const res = await http.get('/search', { params: { q: query, mode } });
       setHits(res.data.hits ?? []);
     } catch {
       setHits([]);
     } finally {
       setSearching(false);
+    }
+  }, []);
+
+  // Voice search — on-device speech-to-text, then a normal query (mirrors web).
+  useEffect(() => {
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      const text = e.value?.[0]?.trim();
+      if (text) void search(text, 'voice');
+    };
+    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      const text = e.value?.[0];
+      if (text) setQ(text);
+    };
+    Voice.onSpeechEnd = () => setListening(false);
+    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+      setListening(false);
+      const code = e.error?.code ?? '';
+      // 7 / "No match" and 6 / speech-timeout are benign (user said nothing).
+      if (code !== '7' && code !== '6') {
+        Alert.alert('Voice search', "Didn't catch that — try again.");
+      }
+    };
+    return () => {
+      Voice.destroy()
+        .then(() => Voice.removeAllListeners())
+        .catch(() => {});
+    };
+  }, [search]);
+
+  async function toggleVoice() {
+    if (listening) {
+      try {
+        await Voice.stop();
+      } catch {
+        /* ignore */
+      }
+      setListening(false);
+      return;
+    }
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Microphone access',
+          message: 'Ahona uses the mic to search by voice.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Not now',
+        },
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        Alert.alert(
+          'Microphone blocked',
+          'Enable microphone access in Settings to use voice search.',
+        );
+        return;
+      }
+    }
+    setShowSugs(false);
+    setQ('');
+    try {
+      setListening(true);
+      await Voice.start('en-US');
+    } catch {
+      setListening(false);
+      Alert.alert('Voice search', 'Voice search is unavailable on this device.');
     }
   }
 
@@ -178,8 +250,21 @@ export function SearchScreen({ navigation }: Props) {
           style={styles.input}
         />
         <Pressable
+          onPress={() => void toggleVoice()}
+          style={[styles.iconBtn, listening && styles.iconBtnActive]}
+          hitSlop={6}
+          accessibilityLabel="Search by voice"
+        >
+          <AppIcon
+            name="mic"
+            color={listening ? colors.white : colors.forestMid}
+            size={19}
+            filled={listening}
+          />
+        </Pressable>
+        <Pressable
           onPress={pickImage}
-          style={styles.cameraBtn}
+          style={styles.iconBtn}
           hitSlop={6}
           accessibilityLabel="Search by image"
         >
@@ -189,6 +274,13 @@ export function SearchScreen({ navigation }: Props) {
           <Text style={styles.goText}>Search</Text>
         </Pressable>
       </View>
+
+      {listening ? (
+        <View style={styles.listeningRow}>
+          <ActivityIndicator size="small" color={colors.forest} />
+          <Text style={styles.listeningText}>Listening… speak now</Text>
+        </View>
+      ) : null}
 
       {imagePreview ? (
         <View style={styles.imgPreviewRow}>
@@ -309,7 +401,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   goText: { color: colors.white, fontWeight: '700', fontSize: 13 },
-  cameraBtn: {
+  iconBtn: {
     width: 40,
     height: 40,
     borderRadius: radii.pill,
@@ -319,6 +411,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconBtnActive: {
+    backgroundColor: colors.forest,
+    borderColor: colors.forest,
+  },
+  listeningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.forest,
+  },
+  listeningText: { fontSize: 12.5, color: colors.forest, fontWeight: '700' },
   imgPreviewRow: {
     flexDirection: 'row',
     alignItems: 'center',

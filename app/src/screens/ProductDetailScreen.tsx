@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
 import { mediaUrl } from '../config';
 import { Badge, Button, ErrorView, Loading } from '../components/ui';
@@ -25,6 +26,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export function ProductDetailScreen({ navigation, route }: Props) {
   const { slug } = route.params;
+  const insets = useSafeAreaInsets();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -94,7 +96,9 @@ export function ProductDetailScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}
+      >
         {images.length > 0 ? (
           <ScrollView
             horizontal
@@ -197,7 +201,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}>
         <Button
           label={`Add to cart · ${formatPrice(price * qty)}`}
           onPress={() => addToCart(false)}

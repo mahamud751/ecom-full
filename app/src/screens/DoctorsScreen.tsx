@@ -45,27 +45,29 @@ export function DoctorsScreen({ navigation }: TabScreenProps<'Doctors'>) {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <Text style={styles.title}>Consult a doctor</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 10 }}
-      >
-        {SPECIALTIES.map(s => (
-          <Pressable
-            key={s}
-            onPress={() => setSpec(s)}
-            style={[styles.chip, spec === s && styles.chipActive]}
-          >
-            <Text
-              numberOfLines={1}
-              style={[styles.chipText, spec === s && { color: colors.white }]}
+      <View style={styles.header}>
+        <Text style={styles.title}>Consult a doctor</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRow}
+        >
+          {SPECIALTIES.map(s => (
+            <Pressable
+              key={s}
+              onPress={() => setSpec(s)}
+              style={[styles.chip, spec === s && styles.chipActive]}
             >
-              {s}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+              <Text
+                numberOfLines={1}
+                style={[styles.chipText, spec === s && { color: colors.white }]}
+              >
+                {s}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
 
       {error ? (
         <ErrorView message={error} onRetry={load} />
@@ -75,7 +77,8 @@ export function DoctorsScreen({ navigation }: TabScreenProps<'Doctors'>) {
         <FlatList
           data={doctors}
           keyExtractor={d => d.id}
-          contentContainerStyle={{ padding: 14, paddingBottom: 30 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 14, paddingTop: 16, paddingBottom: 30 }}
           renderItem={({ item }) => (
             <Pressable
               style={styles.card}
@@ -130,13 +133,22 @@ export function DoctorsScreen({ navigation }: TabScreenProps<'Doctors'>) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.ivory },
+  header: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    paddingTop: 4,
+    paddingBottom: 10,
+  },
   title: {
     fontSize: 20,
     fontWeight: '800',
     color: colors.ink,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
+  chipRow: { paddingHorizontal: 14, gap: 8 },
   chip: {
     borderRadius: radii.pill,
     borderWidth: 1,
@@ -144,7 +156,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: 14,
     paddingVertical: 7,
-    marginRight: 8,
   },
   chipActive: { backgroundColor: colors.forest, borderColor: colors.forest },
   chipText: {

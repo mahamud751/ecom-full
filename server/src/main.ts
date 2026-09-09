@@ -27,9 +27,12 @@ async function bootstrap() {
   });
 
   // Uploaded media stays at /uploads/... (outside the /api prefix) so
-  // existing DB URLs keep working.
+  // existing DB URLs keep working. Uploads are content-addressed by name and
+  // never rewritten in place, so let clients cache them hard.
   app.useStaticAssets(join(process.cwd(), "uploads"), {
     prefix: "/uploads",
+    maxAge: "30d",
+    immutable: true,
   });
 
   const config = new DocumentBuilder()

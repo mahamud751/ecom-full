@@ -9,8 +9,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
 import { mediaUrl } from '../config';
+import { AppIcon } from '../components/AppIcon';
 import {
   Badge,
   Button,
@@ -31,6 +33,7 @@ type DetailProps = NativeStackScreenProps<RootParamList, 'DoctorDetail'>;
 
 export function DoctorDetailScreen({ navigation, route }: DetailProps) {
   const { slug } = route.params;
+  const insets = useSafeAreaInsets();
   const [doctor, setDoctor] = useState<DoctorDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +49,9 @@ export function DoctorDetailScreen({ navigation, route }: DetailProps) {
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
+      >
         <View style={styles.heroWrap}>
           {doctor.image ? (
             <Image
@@ -112,7 +117,9 @@ export function DoctorDetailScreen({ navigation, route }: DetailProps) {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View
+        style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}
+      >
         <Button
           label={`Book consultation · ${formatPrice(doctor.fee)}`}
           onPress={() =>
@@ -134,6 +141,7 @@ type BookProps = NativeStackScreenProps<RootParamList, 'BookConsult'>;
 
 export function BookConsultScreen({ navigation, route }: BookProps) {
   const { doctorId, doctorName, slug } = route.params;
+  const insets = useSafeAreaInsets();
   const user = useAuth(s => s.user);
 
   const [patientName, setPatientName] = useState(user?.name ?? '');
@@ -197,7 +205,10 @@ export function BookConsultScreen({ navigation, route }: BookProps) {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom }}
+    >
       <Text style={styles.h2}>Book with {doctorName}</Text>
       <Text style={styles.sub}>
         {canInstant
@@ -307,7 +318,11 @@ export function BookConsultScreen({ navigation, route }: BookProps) {
             onPress={() => setType(t)}
             style={[styles.typeCard, type === t && styles.typeCardActive]}
           >
-            <Text style={styles.typeIcon}>{t === 'VIDEO' ? '🎥' : '📞'}</Text>
+            <AppIcon
+              name={t === 'VIDEO' ? 'video' : 'phone'}
+              size={22}
+              color={type === t ? colors.white : colors.forest}
+            />
             <Text
               style={[styles.typeText, type === t && { color: colors.white }]}
             >
@@ -397,12 +412,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.forest,
     borderColor: colors.forest,
   },
-  typeIcon: { fontSize: 22 },
   typeText: {
     fontSize: 13,
     fontWeight: '700',
     color: colors.ink,
-    marginTop: 4,
+    marginTop: 6,
   },
   slotWrap: {
     flexDirection: 'row',

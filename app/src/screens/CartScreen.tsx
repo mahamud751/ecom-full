@@ -8,7 +8,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { mediaUrl } from '../config';
 import { Button, EmptyView } from '../components/ui';
 import { useCart } from '../store/cart';
@@ -20,6 +23,7 @@ export function CartScreen({ navigation }: TabScreenProps<'Cart'>) {
   const setQty = useCart(s => s.setQty);
   const remove = useCart(s => s.remove);
   const subtotal = useCart(s => s.subtotal());
+  const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
@@ -32,7 +36,10 @@ export function CartScreen({ navigation }: TabScreenProps<'Cart'>) {
       ) : (
         <>
           <ScrollView
-            contentContainerStyle={{ padding: 14, paddingBottom: 130 }}
+            contentContainerStyle={{
+              padding: 14,
+              paddingBottom: 130 + insets.bottom,
+            }}
           >
             {items.map(i => (
               <View
@@ -93,7 +100,9 @@ export function CartScreen({ navigation }: TabScreenProps<'Cart'>) {
               </View>
             ))}
           </ScrollView>
-          <View style={styles.footer}>
+          <View
+            style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}
+          >
             <View style={{ flex: 1 }}>
               <Text style={styles.subLabel}>Subtotal</Text>
               <Text style={styles.subVal}>{formatPrice(subtotal)}</Text>

@@ -1,6 +1,7 @@
 /** Checkout — delivery details, coupon, COD place order. */
 import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
 import { Button, Card, EmptyView, Field } from '../components/ui';
 import { useAuth } from '../store/auth';
@@ -18,6 +19,7 @@ export function CheckoutScreen({ navigation }: Props) {
   const subtotal = useCart(s => s.subtotal());
   const clear = useCart(s => s.clear);
   const user = useAuth(s => s.user);
+  const insets = useSafeAreaInsets();
 
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -97,7 +99,7 @@ export function CheckoutScreen({ navigation }: Props) {
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
+      contentContainerStyle={{ padding: 14, paddingBottom: 40 + insets.bottom }}
     >
       <Card style={{ padding: 14, marginBottom: 12 }}>
         <Text style={styles.h3}>Delivery details</Text>

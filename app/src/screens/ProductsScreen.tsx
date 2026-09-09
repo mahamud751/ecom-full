@@ -89,6 +89,9 @@ export function ProductsScreen({ navigation, route }: Props) {
             if (!done && !loadingMore) void load(page + 1, sort, true);
           }}
           onEndReachedThreshold={0.4}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
           ListFooterComponent={loadingMore ? <Loading /> : undefined}
           ListEmptyComponent={
             <Loading label={title ? 'No products found' : 'Loading…'} />

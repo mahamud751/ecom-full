@@ -13,7 +13,7 @@ import { colors, discountPercent, formatPrice, radii, shadows } from '../theme';
 import { Badge } from './ui';
 import type { ProductCard as ProductCardType } from '../types';
 
-export function ProductCard({
+function ProductCardBase({
   product,
   onPress,
   width,
@@ -75,6 +75,24 @@ export function ProductCard({
     </Pressable>
   );
 }
+
+/**
+ * Memoized: product rows are re-created on every list render (new `onPress`
+ * closure each time), so compare by the fields that actually affect output and
+ * skip the churn from the changing callback identity.
+ */
+export const ProductCard = React.memo(
+  ProductCardBase,
+  (a, b) =>
+    a.width === b.width &&
+    a.product.id === b.product.id &&
+    a.product.price === b.product.price &&
+    a.product.comparePrice === b.product.comparePrice &&
+    a.product.stock === b.product.stock &&
+    a.product.image === b.product.image &&
+    a.product.name === b.product.name &&
+    a.product.rating === b.product.rating,
+);
 
 const styles = StyleSheet.create({
   card: {
