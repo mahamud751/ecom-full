@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,16 +12,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
 import { mediaUrl } from '../config';
 import { AppIcon } from '../components/AppIcon';
+import { type IconName } from '../components/AppIcon';
 import {
-  Badge,
   Button,
   Card,
+  Chip,
   ErrorView,
   Field,
+  Gradient,
+  IconButton,
+  IconTile,
   Loading,
+  SmartImage,
 } from '../components/ui';
 import { useAuth } from '../store/auth';
-import { colors, formatPrice, radii } from '../theme';
+import { colors, formatPrice, gradients, radii, shadows } from '../theme';
 import type { DoctorDetail } from '../types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
@@ -47,81 +51,112 @@ export function DoctorDetailScreen({ navigation, route }: DetailProps) {
   if (error) return <ErrorView message={error} />;
   if (!doctor) return <Loading />;
 
+  const stats: { icon: IconName; v: string; l: string }[] = [
+    { icon: 'star', v: typeof doctor.rating === 'number' ? doctor.rating.toFixed(1) : '—', l: 'Rating' },
+    { icon: 'user', v: doctor.patients ?? '—', l: 'Patients' },
+    { icon: 'clock', v: doctor.experience ? `${doctor.experience} yrs` : '—', l: 'Experience' },
+  ];
+
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
       >
         <View style={styles.heroWrap}>
-          {doctor.image ? (
-            <Image
-              source={{ uri: mediaUrl(doctor.image) }}
-              style={styles.hero}
-            />
-          ) : null}
+          <SmartImage
+            uri={doctor.image ? mediaUrl(doctor.image) : null}
+            style={styles.hero}
+            icon="doctor"
+            iconSize={80}
+          />
+          <Gradient from="rgba(8,26,25,0)" to="rgba(8,26,25,0.85)" angle="vertical" />
           <View style={styles.heroOverlay}>
+            {doctor.availableNow ? (
+              <View style={styles.livePill}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>Online now</Text>
+              </View>
+            ) : null}
             <Text style={styles.heroName}>{doctor.name}</Text>
             <Text style={styles.heroSpec}>
               {doctor.specialty}
-              {doctor.hospital ? ` · ${doctor.hospital}` : ''}
+              {doctor.designation ? ` · ${doctor.designation}` : ''}
             </Text>
           </View>
         </View>
 
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <Text style={styles.statVal}>
-              ★{' '}
-              {typeof doctor.rating === 'number'
-                ? doctor.rating.toFixed(1)
-                : '—'}
-            </Text>
-            <Text style={styles.statLabel}>Rating</Text>
+        <View style={styles.sheet}>
+          <View style={styles.stats}>
+            {stats.map((st, i) => (
+              <View key={st.l} style={[styles.stat, i > 0 && styles.statDivider]}>
+                <AppIcon
+                  name={st.icon}
+                  color={st.icon === 'star' ? colors.goldStar : colors.forestMid}
+                  filled={st.icon === 'star'}
+                  size={18}
+                />
+                <Text style={styles.statVal}>{st.v}</Text>
+                <Text style={styles.statLabel}>{st.l}</Text>
+              </View>
+            ))}
           </View>
-          <View style={styles.stat}>
-            <Text style={styles.statVal}>{doctor.patients ?? '—'}</Text>
-            <Text style={styles.statLabel}>Patients</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statVal}>{doctor.experience ?? '—'}y</Text>
-            <Text style={styles.statLabel}>Experience</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statVal}>{formatPrice(doctor.fee)}</Text>
-            <Text style={styles.statLabel}>Consult fee</Text>
-          </View>
-        </View>
 
-        <View style={styles.body}>
-          {doctor.availableNow ? (
-            <Badge label="Available now for instant consult" tone="green" />
+          {doctor.hospital ? (
+            <View style={styles.infoRow}>
+              <IconTile name="hospital" size={38} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoLabel}>Practices at</Text>
+                <Text style={styles.infoVal}>{doctor.hospital}</Text>
+              </View>
+            </View>
           ) : null}
+
           {doctor.bio ? (
             <>
               <Text style={styles.h3}>About</Text>
               <Text style={styles.text}>{doctor.bio}</Text>
             </>
           ) : null}
-          {doctor.languages ? (
-            <Text style={styles.meta}>Languages: {doctor.languages}</Text>
+
+          {doctor.education || doctor.languages || doctor.bmdcNumber ? (
+            <View style={styles.facts}>
+              {doctor.education ? (
+                <Fact icon="file" label="Education" value={doctor.education} />
+              ) : null}
+              {doctor.languages ? (
+                <Fact icon="chat" label="Languages" value={doctor.languages} />
+              ) : null}
+              {doctor.bmdcNumber ? (
+                <Fact icon="shield" label="BMDC reg." value={doctor.bmdcNumber} />
+              ) : null}
+            </View>
           ) : null}
-          {doctor.bmdcNumber ? (
-            <Text style={styles.meta}>BMDC Reg: {doctor.bmdcNumber}</Text>
-          ) : null}
+
           {doctor.scheduleSummary ? (
             <>
               <Text style={styles.h3}>Weekly schedule</Text>
-              <Text style={styles.text}>{doctor.scheduleSummary}</Text>
+              <View style={styles.schedule}>
+                <AppIcon name="calendar" color={colors.forest} size={18} />
+                <Text style={[styles.text, { flex: 1 }]}>{doctor.scheduleSummary}</Text>
+              </View>
             </>
           ) : null}
         </View>
       </ScrollView>
 
-      <View
-        style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}
-      >
+      <View style={[styles.topBar, { top: insets.top + 8 }]}>
+        <IconButton name="back" onPress={() => navigation.goBack()} />
+      </View>
+
+      <View style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}>
+        <View style={{ flex: 0.8 }}>
+          <Text style={styles.feeLabel}>Consult fee</Text>
+          <Text style={styles.feeVal}>{formatPrice(doctor.fee)}</Text>
+        </View>
         <Button
-          label={`Book consultation · ${formatPrice(doctor.fee)}`}
+          label="Book consultation"
+          icon="video"
           onPress={() =>
             navigation.navigate('BookConsult', {
               doctorId: doctor.id,
@@ -129,8 +164,21 @@ export function DoctorDetailScreen({ navigation, route }: DetailProps) {
               slug,
             })
           }
+          style={{ flex: 1.4 }}
         />
       </View>
+    </View>
+  );
+}
+
+function Fact({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return (
+    <View style={styles.fact}>
+      <AppIcon name={icon} color={colors.forestMid} size={16} />
+      <Text style={styles.factLabel}>{label}</Text>
+      <Text style={styles.factVal} numberOfLines={2}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -158,6 +206,13 @@ export function BookConsultScreen({ navigation, route }: BookProps) {
   );
   const [slotIso, setSlotIso] = useState<string | null>(null);
   const [canInstant, setCanInstant] = useState(false);
+  const [day, setDay] = useState<string | null>(null);
+
+  type Slot = (typeof slots)[number];
+  const slotDay = (sl: Slot) => sl.dateLabel ?? sl.label.split(' · ')[0];
+  const slotTime = (sl: Slot) => sl.timeLabel ?? sl.label.split(' · ')[1] ?? sl.label;
+  const days = Array.from(new Set(slots.map(slotDay)));
+  const activeDay = day ?? days[0];
 
   useEffect(() => {
     if (!slug) return;
@@ -205,219 +260,288 @@ export function BookConsultScreen({ navigation, route }: BookProps) {
   }
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom }}
-    >
-      <Text style={styles.h2}>Book with {doctorName}</Text>
-      <Text style={styles.sub}>
-        {canInstant
-          ? 'The doctor is online — instant consult or pick a slot.'
-          : 'Pick a time slot for your consult.'}
-      </Text>
-
-      {slots.length > 0 ? (
-        <>
-          <Text style={styles.fieldLabel}>Available slots</Text>
-          <View style={styles.slotWrap}>
-            {slots.map(s => (
-              <Pressable
-                key={s.iso}
-                onPress={() => setSlotIso(s.iso)}
-                style={[styles.slotChip, slotIso === s.iso && styles.slotOn]}
-              >
-                <Text
-                  style={[
-                    styles.slotText,
-                    slotIso === s.iso && { color: colors.white },
-                  ]}
-                >
-                  {s.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {canInstant ? (
-            <Pressable
-              onPress={() => setSlotIso(null)}
-              style={[
-                styles.slotChip,
-                !slotIso && styles.slotOn,
-                { marginBottom: 4 },
-              ]}
-            >
-              <Text
-                style={[styles.slotText, !slotIso && { color: colors.white }]}
-              >
-                ⚡ Instant — talk now
-              </Text>
-            </Pressable>
-          ) : null}
-        </>
-      ) : null}
-
-      <Card style={{ padding: 14, marginTop: 14, marginBottom: 12 }}>
-        <Field
-          label="Patient name"
-          value={patientName}
-          onChangeText={setPatientName}
-        />
-        <Field
-          label="Phone"
-          value={patientPhone}
-          onChangeText={setPatientPhone}
-          keyboardType="phone-pad"
-        />
-        <View style={{ flexDirection: 'row', gap: 10 }}>
+    <View style={styles.root}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 16, paddingBottom: 110 + insets.bottom }}
+      >
+        <View style={styles.bookHead}>
+          <IconTile name="stethoscope" size={50} />
           <View style={{ flex: 1 }}>
-            <Field
-              label="Age"
-              value={age}
-              onChangeText={setAge}
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={{ flex: 1.4 }}>
-            <Text style={styles.fieldLabel}>Gender</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {['FEMALE', 'MALE', 'OTHER'].map(g => (
-                <Pressable
-                  key={g}
-                  onPress={() => setGender(g)}
-                  style={[styles.gChip, gender === g && styles.gChipActive]}
-                >
-                  <Text
-                    style={[
-                      styles.gText,
-                      gender === g && { color: colors.white },
-                    ]}
-                  >
-                    {g.charAt(0) + g.slice(1).toLowerCase()}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text style={styles.h2}>{doctorName}</Text>
+            <Text style={styles.sub}>
+              {canInstant
+                ? 'Online now — talk instantly or pick a slot.'
+                : 'Pick a time slot for your consult.'}
+            </Text>
           </View>
         </View>
-        <View style={{ marginTop: 12 }}>
+
+        <Text style={styles.label}>Consult type</Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 22 }}>
+          {(['VIDEO', 'AUDIO'] as const).map(t => {
+            const on = type === t;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => setType(t)}
+                style={[styles.typeCard, on && styles.typeCardActive]}
+              >
+                {on ? <Gradient from={gradients.forestSoft[0]} to={gradients.forest[1]} /> : null}
+                <View style={[styles.typeIcon, on && { backgroundColor: 'rgba(255,255,255,0.16)' }]}>
+                  <AppIcon name={t === 'VIDEO' ? 'video' : 'phone'} size={22} color={on ? colors.white : colors.forest} />
+                </View>
+                <Text style={[styles.typeText, on && { color: colors.white }]}>
+                  {t === 'VIDEO' ? 'Video call' : 'Voice call'}
+                </Text>
+                <Text style={[styles.typeSub, on && { color: 'rgba(255,255,255,0.7)' }]}>
+                  {t === 'VIDEO' ? 'Face to face' : 'Audio only'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {slots.length > 0 || canInstant ? (
+          <>
+            <Text style={styles.label}>When</Text>
+            <View style={styles.slotWrap}>
+              {canInstant ? (
+                <Pressable
+                  onPress={() => setSlotIso(null)}
+                  style={[styles.slotChip, styles.slotInstant, !slotIso && styles.slotOn]}
+                >
+                  <AppIcon name="bolt" color={!slotIso ? colors.gold : colors.goldDeep} size={14} filled />
+                  <Text style={[styles.slotText, !slotIso && { color: colors.white }]}>
+                    Instant — talk now
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {days.length > 0 ? (
+              <>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 12 }}
+                >
+                  {days.map(d => (
+                    <Chip key={d} label={d} active={d === activeDay} onPress={() => setDay(d)} />
+                  ))}
+                </ScrollView>
+                <View style={styles.timeGrid}>
+                  {slots
+                    .filter(sl => slotDay(sl) === activeDay)
+                    .map(sl => {
+                      const on = slotIso === sl.iso;
+                      return (
+                        <Pressable
+                          key={sl.iso}
+                          onPress={() => setSlotIso(sl.iso)}
+                          style={[styles.timeChip, on && styles.slotOn]}
+                        >
+                          <Text style={[styles.slotText, on && { color: colors.white }]}>
+                            {slotTime(sl)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                </View>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        <Text style={[styles.label, { marginTop: 10 }]}>Patient</Text>
+        <Card style={{ padding: 16 }}>
+          <Field label="Patient name" icon="user" value={patientName} onChangeText={setPatientName} />
+          <Field label="Phone" icon="phone" value={patientPhone} onChangeText={setPatientPhone} keyboardType="phone-pad" />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ width: 90 }}>
+              <Field label="Age" value={age} onChangeText={setAge} keyboardType="numeric" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>Gender</Text>
+              <View style={styles.genderSeg}>
+                {['FEMALE', 'MALE', 'OTHER'].map(g => (
+                  <Pressable
+                    key={g}
+                    onPress={() => setGender(g)}
+                    style={[styles.gChip, gender === g && styles.gChipActive]}
+                  >
+                    <Text style={[styles.gText, gender === g && { color: colors.forest }]}>
+                      {g.charAt(0) + g.slice(1).toLowerCase()}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
           <Field
             label="Symptoms / reason"
             value={symptoms}
             onChangeText={setSymptoms}
             placeholder="Describe the problem briefly"
             multiline
+            style={{ minHeight: 84, textAlignVertical: 'top' }}
           />
-        </View>
-      </Card>
+        </Card>
+      </ScrollView>
 
-      <Text style={styles.fieldLabel}>Consult type</Text>
-      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
-        {(['VIDEO', 'AUDIO'] as const).map(t => (
-          <Pressable
-            key={t}
-            onPress={() => setType(t)}
-            style={[styles.typeCard, type === t && styles.typeCardActive]}
-          >
-            <AppIcon
-              name={t === 'VIDEO' ? 'video' : 'phone'}
-              size={22}
-              color={type === t ? colors.white : colors.forest}
-            />
-            <Text
-              style={[styles.typeText, type === t && { color: colors.white }]}
-            >
-              {t === 'VIDEO' ? 'Video call' : 'Voice call'}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}>
+        <Button
+          label={slotIso || !canInstant ? 'Confirm booking' : 'Start consult now'}
+          icon={type === 'VIDEO' ? 'video' : 'phone'}
+          size="lg"
+          loading={booking}
+          onPress={() => void book()}
+          style={{ flex: 1 }}
+        />
       </View>
-
-      <Button
-        label="Confirm booking"
-        loading={booking}
-        onPress={() => void book()}
-      />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  heroWrap: { position: 'relative' },
-  hero: { width: '100%', height: 300 },
+  heroWrap: { position: 'relative', height: 380 },
+  hero: { width: '100%', height: '100%' },
   heroOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    padding: 16,
-    backgroundColor: 'rgba(12,42,40,0.55)',
+    bottom: 36,
+    paddingHorizontal: 20,
   },
-  heroName: { color: colors.white, fontSize: 20, fontWeight: '800' },
-  heroSpec: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 },
+  livePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 10,
+  },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#3ddc97' },
+  liveText: { color: colors.white, fontSize: 11.5, fontWeight: '700' },
+  heroName: { color: colors.white, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  heroSpec: { color: 'rgba(255,255,255,0.82)', fontSize: 14, marginTop: 4 },
+  topBar: { position: 'absolute', left: 16 },
+  sheet: {
+    marginTop: -24,
+    backgroundColor: colors.ivory,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 16,
+  },
   stats: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    margin: 14,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineSoft,
     paddingVertical: 14,
+    ...shadows.card,
   },
-  stat: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: 15, fontWeight: '800', color: colors.forest },
-  statLabel: { fontSize: 10.5, color: colors.inkMuted, marginTop: 2 },
-  body: { paddingHorizontal: 16, gap: 10 },
-  h3: { fontSize: 15, fontWeight: '700', color: colors.ink, marginTop: 8 },
-  h2: { fontSize: 20, fontWeight: '800', color: colors.ink },
-  text: { fontSize: 13.5, lineHeight: 20, color: colors.ink },
-  meta: { fontSize: 12.5, color: colors.inkMuted },
+  stat: { flex: 1, alignItems: 'center', gap: 3 },
+  statDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.line },
+  statVal: { fontSize: 16, fontWeight: '800', color: colors.ink, marginTop: 2 },
+  statLabel: { fontSize: 11, color: colors.inkMuted },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    padding: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+  },
+  infoLabel: { fontSize: 11.5, color: colors.inkMuted },
+  infoVal: { fontSize: 14, fontWeight: '700', color: colors.ink, marginTop: 1 },
+  h3: { fontSize: 17, fontWeight: '800', color: colors.ink, marginTop: 22, marginBottom: 8 },
+  h2: { fontSize: 20, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
+  text: { fontSize: 14, lineHeight: 21, color: colors.inkSoft },
+  facts: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  fact: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+  },
+  factLabel: { fontSize: 11, color: colors.inkMuted, marginTop: 6 },
+  factVal: { fontSize: 12.5, fontWeight: '700', color: colors.ink, marginTop: 2 },
+  schedule: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+    backgroundColor: colors.brandSoft,
+    borderRadius: radii.md,
+  },
   footer: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    ...shadows.float,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.1,
   },
-  sub: { fontSize: 13, color: colors.inkMuted, marginTop: 6 },
+  feeLabel: { fontSize: 11.5, color: colors.inkMuted, fontWeight: '600' },
+  feeVal: { fontSize: 21, fontWeight: '800', color: colors.ink },
+  bookHead: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 22 },
+  sub: { fontSize: 13, color: colors.inkMuted, marginTop: 3 },
+  label: { fontSize: 15, fontWeight: '800', color: colors.ink, marginBottom: 10 },
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    color: colors.ink,
-    marginBottom: 8,
+    fontWeight: '700',
+    color: colors.inkSoft,
+    marginBottom: 7,
   },
-  gChip: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    backgroundColor: colors.surface,
+  genderSeg: {
+    flexDirection: 'row',
+    backgroundColor: colors.lineSoft,
+    borderRadius: radii.md,
+    padding: 3,
+    height: 50,
   },
-  gChipActive: { backgroundColor: colors.forest, borderColor: colors.forest },
-  gText: { fontSize: 11.5, fontWeight: '600', color: colors.inkMuted },
+  gChip: { flex: 1, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
+  gChipActive: { backgroundColor: colors.surface, ...shadows.card },
+  gText: { fontSize: 12.5, fontWeight: '700', color: colors.inkMuted },
   typeCard: {
     flex: 1,
-    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    paddingVertical: 14,
+    padding: 16,
+    overflow: 'hidden',
   },
-  typeCardActive: {
-    backgroundColor: colors.forest,
-    borderColor: colors.forest,
+  typeCardActive: { borderColor: colors.forest, ...shadows.glow },
+  typeIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.brandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  typeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.ink,
-    marginTop: 6,
-  },
+  typeText: { fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 12 },
+  typeSub: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
   slotWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -425,13 +549,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   slotChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     backgroundColor: colors.surface,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
+  slotInstant: { backgroundColor: colors.goldSoft, borderColor: '#ecdca6' },
   slotOn: { backgroundColor: colors.forest, borderColor: colors.forest },
-  slotText: { fontSize: 12, fontWeight: '600', color: colors.ink },
+  slotText: { fontSize: 12.5, fontWeight: '700', color: colors.ink },
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  timeChip: {
+    width: '31.5%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    paddingVertical: 11,
+  },
 });

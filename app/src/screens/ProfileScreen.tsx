@@ -1,10 +1,10 @@
 /** Profile — view & update name/phone, change password. */
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { http, apiErrorMessage } from '../api/client';
-import { Button, Card, EmptyView, Field } from '../components/ui';
+import { Button, Card, EmptyView, Field, IconTile } from '../components/ui';
 import { useAuth } from '../store/auth';
-import { colors } from '../theme';
+import { colors, radii } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
@@ -84,81 +84,107 @@ export function ProfileScreen({ navigation }: Props) {
     }
   }
 
+  const initials = user.name
+    .split(' ')
+    .map(p => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 16 }}>
-      <Card style={{ padding: 14, marginBottom: 12 }}>
-        <Text style={styles.h3}>Personal details</Text>
-        <Field label="Email" value={user.email} editable={false} />
-        <Field label="Full name" value={name} onChangeText={setName} />
-        <Field
-          label="Phone"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.head}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
+        <Text style={styles.name}>{user.name}</Text>
+        <Text style={styles.email}>{user.email}</Text>
+      </View>
+
+      <Card style={styles.card}>
+        <View style={styles.cardHead}>
+          <IconTile name="user" size={34} />
+          <Text style={styles.h3}>Personal details</Text>
+        </View>
+        <Field label="Email" icon="mail" value={user.email} editable={false} style={{ color: colors.inkMuted }} />
+        <Field label="Full name" icon="user" value={name} onChangeText={setName} />
+        <Field label="Phone" icon="phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
       </Card>
 
-      <Card style={{ padding: 14, marginBottom: 16 }}>
-        <Text style={styles.h3}>Change password</Text>
-        <Field
-          label="Current password"
-          value={curPw}
-          onChangeText={setCurPw}
-          secureTextEntry
-        />
-        <Field
-          label="New password"
-          value={newPw}
-          onChangeText={setNewPw}
-          secureTextEntry
-        />
+      <Card style={styles.card}>
+        <View style={styles.cardHead}>
+          <IconTile name="shield" size={34} />
+          <Text style={styles.h3}>Change password</Text>
+        </View>
+        <Field label="Current password" value={curPw} onChangeText={setCurPw} secureTextEntry />
+        <Field label="New password" value={newPw} onChangeText={setNewPw} secureTextEntry />
       </Card>
 
-      <Button
-        label="Save changes"
-        loading={saving}
-        onPress={() => void save()}
-      />
+      <Button label="Save changes" icon="check" loading={saving} onPress={() => void save()} />
       <Button
         label="Sign out"
-        variant="outline"
-        style={{ marginTop: 10 }}
+        icon="logout"
+        variant="ghost"
+        style={{ marginTop: 6 }}
         onPress={() => {
           void useAuth.getState().logout();
           navigation.popToTop();
         }}
       />
 
-      <Card style={{ padding: 14, marginTop: 24 }}>
-        <Text style={styles.h3}>Delete account</Text>
+      <View style={styles.danger}>
+        <View style={styles.cardHead}>
+          <IconTile name="trash" size={34} color={colors.danger} bg={colors.surface} />
+          <Text style={[styles.h3, { color: colors.danger }]}>Delete account</Text>
+        </View>
         <Text style={styles.dangerHint}>
-          This permanently removes your profile, saved addresses and
-          personal details. This cannot be undone.
+          This permanently removes your profile, saved addresses and personal
+          details. This cannot be undone.
         </Text>
-        <Field
-          label="Confirm your password"
-          value={deletePw}
-          onChangeText={setDeletePw}
-          secureTextEntry
-        />
-        <Button
-          label="Delete my account"
-          variant="danger"
-          loading={deleting}
-          onPress={confirmDelete}
-        />
-      </Card>
+        <Field label="Confirm your password" value={deletePw} onChangeText={setDeletePw} secureTextEntry />
+        <Button label="Delete my account" variant="danger" loading={deleting} onPress={confirmDelete} />
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  h3: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
+  head: { alignItems: 'center', marginBottom: 20, marginTop: 4 },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 30,
+    backgroundColor: colors.forest,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: colors.goldSoft,
+  },
+  avatarText: { fontSize: 30, fontWeight: '800', color: colors.gold },
+  name: { fontSize: 21, fontWeight: '800', color: colors.ink, marginTop: 12, letterSpacing: -0.3 },
+  email: { fontSize: 13, color: colors.inkMuted, marginTop: 2 },
+  card: { padding: 16, marginBottom: 14 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  h3: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  danger: {
+    marginTop: 26,
+    padding: 16,
+    borderRadius: radii.lg,
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: '#f6cfd5',
+  },
   dangerHint: {
     fontSize: 12.5,
-    color: colors.inkMuted,
-    marginBottom: 12,
+    color: colors.inkSoft,
+    marginTop: -6,
+    marginBottom: 14,
     lineHeight: 18,
   },
 });

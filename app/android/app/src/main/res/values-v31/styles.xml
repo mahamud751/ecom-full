@@ -1,0 +1,9 @@
+<resources>
+
+    <!-- Android 12+ system splash: new Ahona icon on brand forest green. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:windowSplashScreenBackground">#0F3F3A</item>
+    </style>
+
+</resources>

@@ -1,4 +1,4 @@
-/** Floating bottom tab bar — one badge glides fluidly to whichever tab is active. */
+/** Floating bottom tab bar — a forest pill glides to whichever tab is active. */
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -10,14 +10,23 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { colors, radii, shadows } from '../theme';
+import { colors, gradients, radii, shadows } from '../theme';
+import { Gradient } from './ui';
 
-const BADGE_SIZE = 34;
+const INSET = 6;
+
+/**
+ * Height the floating bar occupies above the safe-area bottom. Tab screens
+ * pad their scroll content / lift pinned footers by `tabBarSpace(insets)`.
+ */
+export const TAB_BAR_HEIGHT = 84;
+export const tabBarSpace = (insets: { bottom: number }) =>
+  TAB_BAR_HEIGHT + Math.max(insets.bottom, 12);
 
 export function FluidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [barWidth, setBarWidth] = useState(0);
-  const tabWidth = barWidth / state.routes.length;
+  const tabWidth = (barWidth - INSET * 2) / state.routes.length;
 
   const indicator = useRef(new Animated.Value(0)).current;
   const bounceRef = useRef(
@@ -29,8 +38,8 @@ export function FluidTabBar({ state, descriptors, navigation }: BottomTabBarProp
     Animated.spring(indicator, {
       toValue: state.index * tabWidth,
       useNativeDriver: true,
-      speed: 14,
-      bounciness: 9,
+      speed: 16,
+      bounciness: 6,
     }).start();
     bounce.forEach((v, i) => {
       Animated.spring(v, {
@@ -47,24 +56,26 @@ export function FluidTabBar({ state, descriptors, navigation }: BottomTabBarProp
   }
 
   return (
-    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+    >
       <View style={styles.bar} onLayout={onLayout}>
         {barWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
-              styles.badge,
-              {
-                left: (tabWidth - BADGE_SIZE) / 2,
-                transform: [{ translateX: indicator }],
-              },
+              styles.pill,
+              { width: tabWidth, transform: [{ translateX: indicator }] },
             ]}
-          />
+          >
+            <Gradient from={gradients.forestSoft[0]} to={gradients.forest[1]} />
+          </Animated.View>
         ) : null}
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const focused = state.index === index;
-          const color = focused ? colors.forest : colors.inkMuted;
+          const color = focused ? colors.white : colors.inkMuted;
           const label =
             typeof options.tabBarLabel === 'string'
               ? options.tabBarLabel
@@ -81,21 +92,27 @@ export function FluidTabBar({ state, descriptors, navigation }: BottomTabBarProp
             }
           };
 
-          const scale = bounce[index].interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] });
+          const scale = bounce[index].interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 1.08],
+          });
 
           return (
             <Pressable
               key={route.key}
               onPress={onPress}
               style={styles.tab}
-              hitSlop={8}
+              hitSlop={6}
               accessibilityRole="button"
               accessibilityState={focused ? { selected: true } : {}}
             >
               <Animated.View style={[styles.iconWrap, { transform: [{ scale }] }]}>
-                {options.tabBarIcon?.({ focused, color, size: 21 })}
+                {options.tabBarIcon?.({ focused, color, size: 22 })}
               </Animated.View>
-              <Text numberOfLines={1} style={[styles.label, { color }]}>
+              <Text
+                numberOfLines={1}
+                style={[styles.label, { color }, focused && styles.labelActive]}
+              >
                 {label}
               </Text>
             </Pressable>
@@ -108,31 +125,40 @@ export function FluidTabBar({ state, descriptors, navigation }: BottomTabBarProp
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: colors.ivory,
-    paddingHorizontal: 14,
-    paddingTop: 10,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    paddingVertical: 10,
-    ...shadows.card,
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 14,
+    borderRadius: radii.xxl,
+    padding: INSET,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    ...shadows.float,
   },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  iconWrap: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  badge: {
+  pill: {
     position: 'absolute',
-    top: 8,
-    width: BADGE_SIZE,
-    height: BADGE_SIZE,
-    borderRadius: BADGE_SIZE / 2,
-    backgroundColor: colors.brandLight,
+    top: INSET,
+    bottom: INSET,
+    left: INSET,
+    borderRadius: radii.xl,
+    overflow: 'hidden',
   },
-  label: { fontSize: 11, fontWeight: '700' },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    gap: 3,
+  },
+  iconWrap: { height: 24, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 11, fontWeight: '600' },
+  labelActive: { fontWeight: '800' },
 });

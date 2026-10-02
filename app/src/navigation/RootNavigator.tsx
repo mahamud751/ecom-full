@@ -1,6 +1,6 @@
 /** Root navigation — bottom tabs + full-screen stack. */
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -65,19 +65,30 @@ const navTheme = {
 };
 
 const stackOptions = {
-  headerTintColor: colors.white,
-  headerStyle: { backgroundColor: colors.forestDeep },
+  headerTintColor: colors.ink,
+  headerStyle: { backgroundColor: colors.ivory },
   headerShadowVisible: false,
   headerBackTitle: 'Back',
-  headerTitleStyle: { fontWeight: '700' as const, fontSize: 17 },
+  headerTitleAlign: 'center' as const,
+  headerTitleStyle: {
+    fontWeight: '800' as const,
+    fontSize: 17,
+    color: colors.ink,
+  },
+  contentStyle: { backgroundColor: colors.ivory },
+  animation: 'slide_from_right' as const,
 };
 
-function CartTabIcon({ color }: { color: string }) {
+function CartTabIcon({ color, focused }: { color: string; focused: boolean }) {
   const count = useCart(s => s.count());
   return (
     <View>
-      <AppIcon name="cart" color={color} />
-      {count > 0 ? <View style={styles.cartDot} /> : null}
+      <AppIcon name="cart" color={color} filled={focused} />
+      {count > 0 ? (
+        <View style={styles.cartBadge}>
+          <Text style={styles.cartBadgeText}>{count > 9 ? '9+' : count}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -112,7 +123,11 @@ function Tabs() {
       <Tab.Screen
         name="Cart"
         component={CartScreen}
-        options={{ tabBarIcon: ({ color }) => <CartTabIcon color={color} /> }}
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <CartTabIcon color={color} focused={focused} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Account"
@@ -128,17 +143,21 @@ function Tabs() {
 }
 
 const styles = StyleSheet.create({
-  cartDot: {
+  cartBadge: {
     position: 'absolute',
-    right: -2,
-    top: -1,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    right: -9,
+    top: -5,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    paddingHorizontal: 3,
     backgroundColor: colors.gold,
-    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
     borderColor: colors.surface,
   },
+  cartBadgeText: { fontSize: 9.5, fontWeight: '800', color: colors.forestDeep },
 });
 
 export function RootNavigator() {
@@ -165,7 +184,7 @@ export function RootNavigator() {
         <Stack.Screen
           name="ProductDetail"
           component={ProductDetailScreen}
-          options={{ title: 'Product' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Search"
@@ -215,7 +234,7 @@ export function RootNavigator() {
         <Stack.Screen
           name="DoctorDetail"
           component={DoctorDetailScreen}
-          options={{ title: 'Doctor' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="BookConsult"

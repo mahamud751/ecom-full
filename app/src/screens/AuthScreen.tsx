@@ -10,10 +10,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { BrandLogo } from '../components/Logo';
-import { Button, Field } from '../components/ui';
+import { AhonaMark } from '../components/Logo';
+import { AppIcon } from '../components/AppIcon';
+import { Button, Field, Gradient } from '../components/ui';
 import { useAuth } from '../store/auth';
-import { colors } from '../theme';
+import { colors, gradients, radii, shadows } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
@@ -54,6 +55,11 @@ export function AuthScreen({ navigation, route }: Props) {
     }
   }
 
+  const switchTo = (m: 'login' | 'register') => {
+    clearError();
+    setMode(m);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -62,72 +68,93 @@ export function AuthScreen({ navigation, route }: Props) {
       <ScrollView
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={{ alignItems: 'center', marginBottom: 28 }}>
-          <BrandLogo size={52} wordmark={false} />
+        <View style={styles.brand}>
+          <Gradient from={gradients.forest[0]} to={gradients.forest[1]} />
+          <View style={styles.brandGlow} />
+          <AhonaMark size={60} />
           <Text style={styles.title}>
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </Text>
           <Text style={styles.sub}>
             {mode === 'login'
               ? 'Sign in to track orders and consult doctors.'
-              : 'Join Ahona for faster checkout and consult history.'}
+              : 'Faster checkout and your full consult history.'}
           </Text>
         </View>
 
-        {mode === 'register' ? (
-          <>
-            <Field
-              label="Full name"
-              value={name}
-              onChangeText={setName}
-              placeholder="Your name"
-            />
-            <Field
-              label="Phone (optional)"
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="01XXXXXXXXX"
-              keyboardType="phone-pad"
-            />
-          </>
-        ) : null}
-        <Field
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@email.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <Field
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="••••••••"
-          secureTextEntry
-        />
+        <View style={styles.card}>
+          <View style={styles.segment}>
+            {(['login', 'register'] as const).map(m => (
+              <Pressable
+                key={m}
+                onPress={() => switchTo(m)}
+                style={[styles.segBtn, mode === m && styles.segBtnOn]}
+              >
+                <Text style={[styles.segText, mode === m && styles.segTextOn]}>
+                  {m === 'login' ? 'Sign in' : 'Register'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
-        {error ? <Text style={styles.err}>{error}</Text> : null}
+          {mode === 'register' ? (
+            <>
+              <Field label="Full name" icon="user" value={name} onChangeText={setName} placeholder="Your name" />
+              <Field
+                label="Phone (optional)"
+                icon="phone"
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="01XXXXXXXXX"
+                keyboardType="phone-pad"
+              />
+            </>
+          ) : null}
+          <Field
+            label="Email"
+            icon="mail"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <Field
+            label="Password"
+            icon="shield"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry
+          />
 
-        <Button
-          label={mode === 'login' ? 'Sign in' : 'Create account'}
-          loading={busy}
-          onPress={() => void submit()}
-          style={{ marginTop: 8 }}
-        />
+          {error ? (
+            <View style={styles.errBox}>
+              <AppIcon name="info" color={colors.danger} size={16} />
+              <Text style={styles.err}>{error}</Text>
+            </View>
+          ) : null}
+
+          <Button
+            label={mode === 'login' ? 'Sign in' : 'Create account'}
+            size="lg"
+            loading={busy}
+            onPress={() => void submit()}
+            style={{ marginTop: 6 }}
+          />
+        </View>
 
         <Pressable
-          style={{ marginTop: 18, alignItems: 'center' }}
-          onPress={() => {
-            clearError();
-            setMode(mode === 'login' ? 'register' : 'login');
-          }}
+          style={{ marginTop: 20, alignItems: 'center' }}
+          onPress={() => switchTo(mode === 'login' ? 'register' : 'login')}
         >
           <Text style={styles.switchText}>
-            {mode === 'login'
-              ? 'New to Ahona? Create an account'
-              : 'Already have an account? Sign in'}
+            {mode === 'login' ? 'New to Ahona? ' : 'Already have an account? '}
+            <Text style={styles.switchLink}>
+              {mode === 'login' ? 'Create an account' : 'Sign in'}
+            </Text>
           </Text>
         </Pressable>
       </ScrollView>
@@ -137,14 +164,68 @@ export function AuthScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  inner: { padding: 24, flexGrow: 1, justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '800', color: colors.ink, marginTop: 14 },
+  inner: { padding: 16, paddingBottom: 40, flexGrow: 1 },
+  brand: {
+    borderRadius: radii.xxl,
+    overflow: 'hidden',
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 24,
+  },
+  brandGlow: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -90,
+    right: -60,
+    backgroundColor: 'rgba(201,162,39,0.16)',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.white,
+    marginTop: 16,
+    letterSpacing: -0.4,
+  },
   sub: {
-    fontSize: 13,
-    color: colors.inkMuted,
+    fontSize: 13.5,
+    color: 'rgba(255,255,255,0.75)',
     marginTop: 6,
     textAlign: 'center',
   },
-  err: { color: colors.danger, fontSize: 13, marginBottom: 8 },
-  switchText: { fontSize: 13.5, fontWeight: '600', color: colors.forestMid },
+  card: {
+    marginTop: -18,
+    marginHorizontal: 8,
+    padding: 18,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    ...shadows.float,
+    shadowOpacity: 0.1,
+  },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: colors.lineSoft,
+    borderRadius: radii.md,
+    padding: 4,
+    marginBottom: 18,
+  },
+  segBtn: { flex: 1, paddingVertical: 10, borderRadius: radii.sm, alignItems: 'center' },
+  segBtnOn: { backgroundColor: colors.surface, ...shadows.card },
+  segText: { fontSize: 14, fontWeight: '700', color: colors.inkMuted },
+  segTextOn: { color: colors.forest },
+  errBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: radii.sm,
+    backgroundColor: colors.dangerSoft,
+    marginBottom: 10,
+  },
+  err: { flex: 1, color: colors.danger, fontSize: 13, fontWeight: '600' },
+  switchText: { fontSize: 14, color: colors.inkMuted },
+  switchLink: { fontWeight: '800', color: colors.forest },
 });

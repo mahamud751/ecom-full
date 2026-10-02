@@ -20,6 +20,8 @@ import {
   type IRtcEngine,
 } from 'react-native-agora';
 import { http, apiErrorMessage } from '../api/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon } from '../components/AppIcon';
 import { colors } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
@@ -36,6 +38,7 @@ type TokenData = {
 };
 
 export function CallRoomScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const { consultationId, mode } = route.params;
   const engineRef = useRef<IRtcEngine | null>(null);
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
@@ -134,7 +137,7 @@ export function CallRoomScreen({ navigation, route }: Props) {
     return (
       <View style={styles.center}>
         <Text style={styles.statusText}>{error}</Text>
-        <Pressable style={styles.endBtn} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.btnText}>Go back</Text>
         </Pressable>
       </View>
@@ -156,7 +159,14 @@ export function CallRoomScreen({ navigation, route }: Props) {
         )
       ) : (
         <View style={[styles.remote, styles.waiting]}>
-          <Text style={styles.audioIcon}>📞</Text>
+          <View style={styles.ring2}>
+            <View style={styles.ring1}>
+              <View style={styles.audioAvatar}>
+                <AppIcon name="stethoscope" color={colors.gold} size={44} strokeWidth={1.6} />
+              </View>
+            </View>
+          </View>
+          <Text style={styles.audioTitle}>Voice consultation</Text>
           <Text style={styles.waitingText}>{status}</Text>
         </View>
       )}
@@ -167,13 +177,29 @@ export function CallRoomScreen({ navigation, route }: Props) {
         </View>
       ) : null}
 
-      <View style={styles.controls}>
-        <Pressable style={styles.ctlBtn} onPress={toggleMic}>
-          <Text style={styles.btnText}>{micOn ? '🎙 Mute' : '🎙 Unmute'}</Text>
-        </Pressable>
-        <Pressable style={styles.endBtn} onPress={endCall}>
-          <Text style={styles.btnText}>End call</Text>
-        </Pressable>
+      <View style={[styles.controls, { bottom: insets.bottom + 28 }]}>
+        <View style={styles.ctlItem}>
+          <Pressable
+            style={[styles.ctlBtn, !micOn && styles.ctlBtnOff]}
+            onPress={toggleMic}
+            accessibilityLabel={micOn ? 'Mute' : 'Unmute'}
+          >
+            <AppIcon
+              name={micOn ? 'mic' : 'micOff'}
+              color={micOn ? colors.white : colors.forestDeep}
+              size={26}
+            />
+          </Pressable>
+          <Text style={styles.ctlLabel}>{micOn ? 'Mute' : 'Unmute'}</Text>
+        </View>
+        <View style={styles.ctlItem}>
+          <Pressable style={styles.endBtn} onPress={endCall} accessibilityLabel="End call">
+            <View style={{ transform: [{ rotate: '135deg' }] }}>
+              <AppIcon name="phone" color={colors.white} size={28} filled />
+            </View>
+          </Pressable>
+          <Text style={styles.ctlLabel}>End</Text>
+        </View>
       </View>
     </View>
   );
@@ -192,36 +218,58 @@ const styles = StyleSheet.create({
   remote: { flex: 1 },
   waiting: { alignItems: 'center', justifyContent: 'center', gap: 12 },
   waitingText: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
-  audioIcon: { fontSize: 48 },
+  ring2: { padding: 22, borderRadius: 120, backgroundColor: 'rgba(201,162,39,0.06)' },
+  ring1: { padding: 18, borderRadius: 100, backgroundColor: 'rgba(201,162,39,0.1)' },
+  audioAvatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  audioTitle: { color: colors.white, fontSize: 20, fontWeight: '800', marginTop: 12 },
   localWrap: {
     position: 'absolute',
-    top: 40,
+    top: 56,
     right: 16,
     width: 110,
     height: 150,
-    borderRadius: 12,
+    borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   local: { width: '100%', height: '100%' },
   controls: {
     position: 'absolute',
-    bottom: 30,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 14,
+    gap: 40,
   },
+  ctlItem: { alignItems: 'center', gap: 8 },
+  ctlLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600' },
   ctlBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  ctlBtnOff: { backgroundColor: colors.white },
   endBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtn: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
     borderRadius: 24,
     paddingHorizontal: 24,
     paddingVertical: 12,

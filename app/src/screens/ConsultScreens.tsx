@@ -1,6 +1,6 @@
 /** My consultations (by phone) + consult detail with call entry. */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { http, apiErrorMessage } from '../api/client';
 import {
   Badge,
@@ -9,12 +9,15 @@ import {
   EmptyView,
   ErrorView,
   Field,
+  Gradient,
+  IconTile,
   Loading,
   statusLabel,
   statusTone,
 } from '../components/ui';
 import { storage } from '../lib/storage';
-import { colors, formatPrice } from '../theme';
+import { AppIcon } from '../components/AppIcon';
+import { colors, formatPrice, gradients, radii } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
@@ -66,54 +69,70 @@ export function MyConsultationsScreen({ navigation }: ListProps) {
   }, []);
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.h2}>My consultations</Text>
-      <Field
-        label="Your phone number"
-        value={phone}
-        onChangeText={setPhone}
-        placeholder="01XXXXXXXXX"
-        keyboardType="phone-pad"
-      />
-      <Button
-        label="Find my consultations"
-        onPress={() => void load(phone)}
-        loading={loading}
-      />
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <Card style={{ padding: 16 }}>
+        <View style={styles.findHead}>
+          <IconTile name="calendar" size={44} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h3}>Find your consultations</Text>
+            <Text style={styles.meta}>We look them up by the phone you booked with.</Text>
+          </View>
+        </View>
+        <Field
+          icon="phone"
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="01XXXXXXXXX"
+          keyboardType="phone-pad"
+        />
+        <Button
+          label="Find consultations"
+          icon="search"
+          onPress={() => void load(phone)}
+          loading={loading}
+        />
+      </Card>
 
       {error ? <Text style={styles.err}>{error}</Text> : null}
+      {rows && rows.length > 0 ? (
+        <Text style={styles.count}>
+          {rows.length} consultation{rows.length > 1 ? 's' : ''}
+        </Text>
+      ) : null}
       {rows?.map(r => (
         <Card
           key={r.id}
-          style={{ padding: 14, marginTop: 10 }}
+          style={styles.row}
           onPress={() => navigation.navigate('ConsultDetail', { id: r.id })}
         >
-          <View
-            style={{ flexDirection: 'row', justifyContent: 'space-between' }}
-          >
-            <Text style={styles.consultNo}>{r.consultNumber}</Text>
-            <Badge label={statusLabel(r.status)} tone={statusTone(r.status)} />
-          </View>
-          <Text style={styles.docName}>
-            {r.doctor.name} · {r.doctor.specialty}
-          </Text>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              marginTop: 4,
-            }}
-          >
-            <Text style={styles.meta}>
-              {r.type === 'AUDIO' ? 'Voice' : 'Video'} ·{' '}
-              {new Date(r.createdAt).toLocaleDateString()}
+          <IconTile
+            name={r.type === 'AUDIO' ? 'phone' : 'video'}
+            size={46}
+            color={colors.forest}
+            bg={colors.brandLight}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.docName} numberOfLines={1}>
+              {r.doctor.name}
             </Text>
-            <Text style={styles.fee}>{formatPrice(r.fee)}</Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {r.doctor.specialty} · {new Date(r.createdAt).toLocaleDateString()}
+            </Text>
+            <View style={styles.rowFoot}>
+              <Badge label={statusLabel(r.status)} tone={statusTone(r.status)} />
+              <Text style={styles.feeSm}>{formatPrice(r.fee)}</Text>
+            </View>
           </View>
         </Card>
       ))}
       {rows && rows.length === 0 ? (
         <EmptyView
+          icon="stethoscope"
           title="No consultations"
           hint="Booked consults for this phone will appear here."
         />
@@ -158,39 +177,58 @@ export function ConsultDetailScreen({ navigation, route }: DetailProps) {
   const joinable = !['CANCELLED', 'COMPLETED'].includes(consult.status);
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 16 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <Text style={styles.consultNo}>{consult.consultNumber}</Text>
-        <Badge
-          label={statusLabel(consult.status)}
-          tone={statusTone(consult.status)}
-        />
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.hero}>
+        <Gradient from={gradients.forestSoft[0]} to={gradients.forest[1]} />
+        <View style={styles.heroTop}>
+          <Text style={styles.heroNo}>{consult.consultNumber}</Text>
+          <View style={styles.heroBadge}>
+            <Text style={styles.heroBadgeText}>{statusLabel(consult.status)}</Text>
+          </View>
+        </View>
+        <View style={styles.heroDoc}>
+          <View style={styles.heroIcon}>
+            <AppIcon name="stethoscope" color={colors.gold} size={26} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroName}>{consult.doctor.name}</Text>
+            <Text style={styles.heroSpec}>{consult.doctor.specialty}</Text>
+          </View>
+        </View>
+        <View style={styles.heroMeta}>
+          <View style={styles.heroMetaItem}>
+            <AppIcon name={consult.type === 'AUDIO' ? 'phone' : 'video'} color={colors.white} size={15} />
+            <Text style={styles.heroMetaText}>
+              {consult.type === 'AUDIO' ? 'Voice call' : 'Video call'}
+            </Text>
+          </View>
+          <View style={styles.heroMetaItem}>
+            <AppIcon name="wallet" color={colors.white} size={15} />
+            <Text style={styles.heroMetaText}>{formatPrice(consult.fee)}</Text>
+          </View>
+        </View>
       </View>
 
-      <Card style={{ padding: 14, marginTop: 14 }}>
-        <Text style={styles.h3}>{consult.doctor.name}</Text>
-        <Text style={styles.meta}>{consult.doctor.specialty}</Text>
-        <Text style={styles.meta}>Patient: {consult.patientName}</Text>
+      <Card style={{ padding: 16, marginTop: 14 }}>
+        <Text style={styles.cap}>PATIENT</Text>
+        <Text style={styles.h3}>{consult.patientName}</Text>
         {consult.symptoms ? (
-          <Text style={styles.meta}>Symptoms: {consult.symptoms}</Text>
+          <>
+            <Text style={[styles.cap, { marginTop: 14 }]}>SYMPTOMS</Text>
+            <Text style={styles.body}>{consult.symptoms}</Text>
+          </>
         ) : null}
-        <Text style={styles.fee}>
-          {formatPrice(consult.fee)} ·{' '}
-          {consult.type === 'AUDIO' ? 'Voice call' : 'Video call'}
-        </Text>
       </Card>
 
       {joinable ? (
         <Button
-          label={
-            consult.type === 'AUDIO' ? 'Join voice call' : 'Join video call'
-          }
+          label={consult.type === 'AUDIO' ? 'Join voice call' : 'Join video call'}
+          icon={consult.type === 'AUDIO' ? 'phone' : 'video'}
+          size="lg"
           style={{ marginTop: 16 }}
           onPress={() =>
             navigation.navigate('CallRoom', {
@@ -202,10 +240,32 @@ export function ConsultDetailScreen({ navigation, route }: DetailProps) {
         />
       ) : null}
 
+      {consult.prescription ? (
+        <Card
+          style={styles.rxCard}
+          onPress={() =>
+            navigation.navigate('PrescriptionView', { id: consult.prescription!.id })
+          }
+        >
+          <IconTile name="file" size={46} color={colors.goldDeep} bg={colors.goldSoft} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h3}>Prescription ready</Text>
+            {consult.prescription.diagnosis ? (
+              <Text style={styles.meta} numberOfLines={1}>
+                {consult.prescription.diagnosis}
+              </Text>
+            ) : (
+              <Text style={styles.meta}>Tap to view your prescription</Text>
+            )}
+          </View>
+          <AppIcon name="chevronRight" color={colors.inkFaint} size={18} />
+        </Card>
+      ) : null}
+
       {consult.status === 'PENDING' || consult.status === 'CONFIRMED' ? (
         <Button
           label="Cancel consultation"
-          variant="outline"
+          variant="ghost"
           style={{ marginTop: 10 }}
           onPress={async () => {
             try {
@@ -219,53 +279,53 @@ export function ConsultDetailScreen({ navigation, route }: DetailProps) {
           }}
         />
       ) : null}
-
-      {consult.prescription ? (
-        <Pressable
-          onPress={() =>
-            navigation.navigate('PrescriptionView', {
-              id: consult.prescription!.id,
-            })
-          }
-        >
-          <Card style={{ padding: 14, marginTop: 14 }}>
-            <Text style={styles.h3}>📝 Prescription ready</Text>
-            {consult.prescription.diagnosis ? (
-              <Text style={styles.meta}>
-                Diagnosis: {consult.prescription.diagnosis}
-              </Text>
-            ) : null}
-            <Text style={styles.viewLink}>Tap to view →</Text>
-          </Card>
-        </Pressable>
-      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  h2: { fontSize: 20, fontWeight: '800', color: colors.ink, marginBottom: 12 },
-  h3: { fontSize: 15, fontWeight: '700', color: colors.ink },
-  consultNo: { fontSize: 16, fontWeight: '800', color: colors.forest },
-  docName: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: colors.ink,
-    marginTop: 6,
+  findHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  h3: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  count: { fontSize: 12.5, fontWeight: '700', color: colors.inkMuted, marginTop: 20, marginBottom: 2 },
+  row: { flexDirection: 'row', gap: 14, padding: 14, marginTop: 10, alignItems: 'center' },
+  rowFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  docName: { fontSize: 15, fontWeight: '800', color: colors.ink },
+  meta: { fontSize: 12.5, color: colors.inkMuted, marginTop: 3 },
+  feeSm: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  err: { color: colors.danger, fontSize: 13, marginTop: 12, textAlign: 'center' },
+  hero: { borderRadius: radii.xl, overflow: 'hidden', padding: 18 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroNo: { color: 'rgba(255,255,255,0.7)', fontSize: 12.5, fontWeight: '700', letterSpacing: 1 },
+  heroBadge: {
+    backgroundColor: colors.gold,
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  meta: { fontSize: 12.5, color: colors.inkMuted, marginTop: 4 },
-  fee: { fontSize: 14, fontWeight: '800', color: colors.forest, marginTop: 6 },
-  err: {
-    color: colors.danger,
-    fontSize: 13,
-    marginTop: 12,
-    textAlign: 'center',
+  heroBadgeText: { fontSize: 11, fontWeight: '800', color: colors.forestDeep },
+  heroDoc: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
+  heroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  viewLink: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.forestMid,
-    marginTop: 8,
+  heroName: { color: colors.white, fontSize: 19, fontWeight: '800' },
+  heroSpec: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 2 },
+  heroMeta: {
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.14)',
   },
+  heroMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroMetaText: { color: colors.white, fontSize: 13, fontWeight: '700' },
+  cap: { fontSize: 11, fontWeight: '700', color: colors.inkMuted, letterSpacing: 1, marginBottom: 4 },
+  body: { fontSize: 14, color: colors.inkSoft, lineHeight: 20 },
+  rxCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, marginTop: 14 },
 });

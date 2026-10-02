@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { http, apiErrorMessage } from '../api/client';
 import { BRAND } from '../config';
-import { Button, Card, Field } from '../components/ui';
-import { colors, radii } from '../theme';
+import { type IconName } from '../components/AppIcon';
+import { Button, Card, Field, IconTile } from '../components/ui';
+import { colors, radii, shadows } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
@@ -158,40 +159,47 @@ export function SupportScreen({ navigation }: SupportProps) {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.h2}>Contact support</Text>
+      <Text style={styles.h2}>How can we help?</Text>
+      <Text style={styles.sub}>Reach us directly or send a message below.</Text>
       <View style={styles.quickRow}>
         <Pressable
           style={styles.quick}
           onPress={() => void Linking.openURL(`tel:${BRAND.supportPhone}`)}
         >
-          <Text style={styles.quickIcon}>📞</Text>
+          <IconTile name="phone" size={46} />
           <Text style={styles.quickText}>Call us</Text>
+          <Text style={styles.quickSub}>9 AM – 10 PM</Text>
         </Pressable>
         <Pressable
           style={styles.quick}
           onPress={() => void Linking.openURL(`mailto:${BRAND.supportEmail}`)}
         >
-          <Text style={styles.quickIcon}>✉️</Text>
+          <IconTile name="mail" size={46} color={colors.goldDeep} bg={colors.goldSoft} />
           <Text style={styles.quickText}>Email us</Text>
+          <Text style={styles.quickSub}>Reply within hours</Text>
         </Pressable>
       </View>
 
       <Card style={{ padding: 14, marginTop: 14 }}>
-        <Field label="Your name" value={name} onChangeText={setName} />
+        <Field label="Your name" icon="user" value={name} onChangeText={setName} />
         <Field
           label="Phone"
+          icon="phone"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
         />
         <Field
           label="Email (optional)"
+          icon="mail"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
+          autoCapitalize="none"
         />
         <Field
           label="Order number (optional)"
+          icon="box"
           value={orderNumber}
           onChangeText={setOrderNumber}
           autoCapitalize="characters"
@@ -202,11 +210,13 @@ export function SupportScreen({ navigation }: SupportProps) {
           value={message}
           onChangeText={setMessage}
           multiline
-          placeholder="How can we help?"
+          placeholder="Tell us what happened…"
+          style={{ minHeight: 96, textAlignVertical: 'top' }}
         />
       </Card>
       <Button
         label="Send message"
+        icon="arrowRight"
         loading={sending}
         onPress={() => void submit()}
         style={{ marginTop: 14 }}
@@ -263,24 +273,37 @@ const INFO_CONTENT: Record<
   },
 };
 
+const INFO_ICON: Record<InfoProps['route']['params']['topic'], IconName> = {
+  contact: 'mail',
+  terms: 'file',
+  privacy: 'shield',
+  compliance: 'info',
+};
+
 export function InfoScreen({ route }: InfoProps) {
   const { topic } = route.params;
   const content = INFO_CONTENT[topic];
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 18 }}>
-      <Text style={styles.h2}>{content.title}</Text>
-      {content.paragraphs.map((p, i) => (
-        <Text key={i} style={styles.para}>
-          {p}
-        </Text>
-      ))}
+    <ScrollView style={styles.root} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <View style={styles.infoHead}>
+        <IconTile name={INFO_ICON[topic]} size={52} />
+        <Text style={[styles.h2, { flex: 1 }]}>{content.title}</Text>
+      </View>
+      <Card style={{ paddingVertical: 6, paddingHorizontal: 16 }}>
+        {content.paragraphs.map((p, i) => (
+          <View key={i} style={[styles.paraRow, i > 0 && styles.paraDivider]}>
+            <View style={styles.bullet} />
+            <Text style={styles.para}>{p}</Text>
+          </View>
+        ))}
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  h2: { fontSize: 20, fontWeight: '800', color: colors.ink },
+  h2: { fontSize: 21, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
   sub: { fontSize: 13, color: colors.inkMuted, marginTop: 4 },
   fieldLabel: {
     fontSize: 13,
@@ -295,30 +318,36 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
-  radioOn: { borderColor: colors.forest, backgroundColor: colors.forest },
+  radioOn: { borderColor: colors.forest, borderWidth: 6 },
   optText: { fontSize: 13.5, color: colors.ink },
-  quickRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  quickRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   quick: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.line,
-    paddingVertical: 16,
+    borderColor: colors.lineSoft,
+    paddingVertical: 18,
+    ...shadows.card,
   },
-  quickIcon: { fontSize: 24 },
   quickText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.forest,
-    marginTop: 6,
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.ink,
+    marginTop: 10,
   },
-  para: { fontSize: 14, lineHeight: 22, color: colors.ink, marginTop: 12 },
+  quickSub: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
+  infoHead: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  paraRow: { flexDirection: 'row', gap: 12, paddingVertical: 14 },
+  paraDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  bullet: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.gold, marginTop: 8 },
+  para: { flex: 1, fontSize: 14.5, lineHeight: 22, color: colors.inkSoft },
 });

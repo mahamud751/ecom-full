@@ -1,34 +1,54 @@
 /**
- * Design system ported from the web storefront (src/app/globals.css).
- * Ahona Premium — deep forest + champagne gold + warm ivory.
+ * Ahona design system — deep forest + champagne gold + warm ivory.
+ * Tokens keep the web storefront's palette; depth, radii and type are tuned
+ * for a softer, more premium mobile feel.
  */
 export const colors = {
-  forestDeep: "#0c2a28",
-  forest: "#164f4a",
+  forestDeep: "#0b2624",
+  forest: "#15504a",
   forestMid: "#1f6b64",
+  forestGlow: "#2c8a80",
   gold: "#c9a227",
-  goldDeep: "#9a7b1a",
-  goldSoft: "#f5edd4",
-  goldStar: "#d4af37",
-  ivory: "#f8f6f1",
+  goldDeep: "#94761a",
+  goldSoft: "#f7efd6",
+  goldStar: "#e0b43a",
+  ivory: "#f6f4ee",
   surface: "#ffffff",
-  ink: "#14201f",
-  inkMuted: "#5c6b69",
-  line: "#e8e4db",
-  discount: "#c41e3a",
-  lime: "#3d9a6a",
-  brandLight: "#e8f2f0",
-  brandSoft: "#f0f7f6",
-  danger: "#c41e3a",
+  surfaceAlt: "#fbfaf7",
+  ink: "#101c1b",
+  inkSoft: "#34423f",
+  inkMuted: "#6b7a77",
+  inkFaint: "#a3aeab",
+  line: "#ebe7de",
+  lineSoft: "#f1eee7",
+  discount: "#d7263d",
+  lime: "#2f9163",
+  brandLight: "#e4f1ee",
+  brandSoft: "#f0f6f4",
+  danger: "#d7263d",
+  dangerSoft: "#fdecee",
   warning: "#b45309",
+  successSoft: "#e3f4ea",
   white: "#ffffff",
+  overlay: "rgba(8,26,25,0.55)",
+};
+
+/** Two-stop gradients rendered via <Gradient> (react-native-svg). */
+export const gradients = {
+  forest: ["#1d6a62", "#0b2624"] as const,
+  forestSoft: ["#2c8a80", "#15504a"] as const,
+  gold: ["#e3c25a", "#b8901c"] as const,
+  dawn: ["#fff7e3", "#f6f4ee"] as const,
+  mint: ["#e9f5f1", "#f6f4ee"] as const,
 };
 
 export const radii = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+  xxl: 30,
   pill: 999,
 };
 
@@ -40,20 +60,50 @@ export const fonts = {
 };
 
 export const type = {
-  h1: { fontSize: 26, fontWeight: "700" as const, color: colors.ink },
-  h2: { fontSize: 20, fontWeight: "700" as const, color: colors.ink },
-  h3: { fontSize: 16, fontWeight: "600" as const, color: colors.ink },
-  body: { fontSize: 14, color: colors.ink },
+  display: {
+    fontSize: 30,
+    fontWeight: "800" as const,
+    color: colors.ink,
+    letterSpacing: -0.6,
+  },
+  h1: { fontSize: 26, fontWeight: "800" as const, color: colors.ink, letterSpacing: -0.4 },
+  h2: { fontSize: 20, fontWeight: "800" as const, color: colors.ink, letterSpacing: -0.2 },
+  h3: { fontSize: 16, fontWeight: "700" as const, color: colors.ink },
+  body: { fontSize: 14, color: colors.inkSoft, lineHeight: 20 },
   caption: { fontSize: 12, color: colors.inkMuted },
+  overline: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: colors.inkMuted,
+    letterSpacing: 1.2,
+    textTransform: "uppercase" as const,
+  },
 };
 
 export const shadows = {
+  /** Resting cards — barely-there lift. */
   card: {
-    shadowColor: colors.forestDeep,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    shadowColor: "#0b2624",
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  /** Floating elements — tab bar, sticky CTAs, hero cards. */
+  float: {
+    shadowColor: "#0b2624",
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+  /** Coloured glow under primary buttons. */
+  glow: {
+    shadowColor: "#15504a",
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
 };
 

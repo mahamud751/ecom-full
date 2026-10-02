@@ -1,8 +1,6 @@
 /** Wishlist + product alert (notify) screens. */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,10 +15,13 @@ import {
   EmptyView,
   ErrorView,
   Field,
+  IconTile,
   Loading,
+  SmartImage,
 } from '../components/ui';
+import { ProductCard } from '../components/ProductCard';
 import { useWishlist } from '../store/wishlist';
-import { colors, formatPrice } from '../theme';
+import { colors, formatPrice, radii } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
@@ -40,7 +41,6 @@ type WishProps = NativeStackScreenProps<RootParamList, 'Wishlist'>;
 
 export function WishlistScreen({ navigation }: WishProps) {
   const ids = useWishlist(s => s.ids);
-  const toggle = useWishlist(s => s.toggle);
   const [items, setItems] = useState<WishItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,56 +63,36 @@ export function WishlistScreen({ navigation }: WishProps) {
   if (!items) return <Loading />;
   if (items.length === 0) {
     return (
-      <EmptyView
-        title="Your wishlist is empty"
-        hint="Tap the heart on any product to save it here."
-      />
+      <View style={[styles.root, { justifyContent: 'center' }]}>
+        <EmptyView
+          icon="heart"
+          title="Your wishlist is empty"
+          hint="Tap the heart on any product to save it here."
+          action={{ label: 'Explore products', onPress: () => navigation.navigate('Products', { title: 'All products' }) }}
+        />
+      </View>
     );
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 14 }}>
-      {items.map(i => (
-        <Card
-          key={i.id}
-          style={{
-            flexDirection: 'row',
-            gap: 12,
-            padding: 12,
-            marginBottom: 10,
-          }}
-          onPress={() => navigation.navigate('ProductDetail', { slug: i.slug })}
-        >
-          {i.image ? (
-            <Image source={{ uri: mediaUrl(i.image) }} style={styles.img} />
-          ) : (
-            <View style={[styles.img, { backgroundColor: colors.brandSoft }]} />
-          )}
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={2} style={styles.name}>
-              {i.name}
-            </Text>
-            <Text style={styles.price}>{formatPrice(i.price)}</Text>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                marginTop: 4,
-              }}
-            >
-              {i.inStock ? (
-                <Badge label="In stock" tone="green" />
-              ) : (
-                <Badge label="Out of stock" tone="red" />
-              )}
-              <Pressable onPress={() => toggle(i.id)} hitSlop={8}>
-                <Text style={styles.remove}>Remove</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Card>
-      ))}
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.count}>
+        {items.length} saved item{items.length > 1 ? 's' : ''}
+      </Text>
+      <View style={styles.grid}>
+        {items.map(i => (
+          <ProductCard
+            key={i.id}
+            width="48.3%"
+            product={{ ...i, stock: i.inStock ? Math.max(i.stock, 1) : 0 }}
+            onPress={() => navigation.navigate('ProductDetail', { slug: i.slug })}
+          />
+        ))}
+      </View>
     </ScrollView>
   );
 }
@@ -158,54 +138,60 @@ export function NotificationsScreen({ navigation }: NotifyProps) {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.h2}>Product alerts</Text>
-      <Text style={styles.sub}>
-        Enter the email/phone you used to subscribe to back-in-stock alerts.
-      </Text>
-      <Field
-        label="Email or phone"
-        value={contact}
-        onChangeText={setContact}
-        placeholder="you@email.com"
-      />
-      <Button
-        label="Load alerts"
-        onPress={() => void load()}
-        loading={loading}
-      />
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Card style={{ padding: 16 }}>
+        <View style={styles.head}>
+          <IconTile name="bell" size={44} color={colors.goldDeep} bg={colors.goldSoft} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h3}>Back-in-stock alerts</Text>
+            <Text style={styles.sub}>Use the email or phone you subscribed with.</Text>
+          </View>
+        </View>
+        <Field
+          icon="mail"
+          value={contact}
+          onChangeText={setContact}
+          placeholder="you@email.com or 01XXXXXXXXX"
+          autoCapitalize="none"
+        />
+        <Button label="Show my alerts" icon="search" onPress={() => void load()} loading={loading} />
+      </Card>
 
       {error ? <Text style={styles.err}>{error}</Text> : null}
-      {rows?.map(r => (
-        <Card
-          key={r.id}
-          style={{ flexDirection: 'row', gap: 12, padding: 12, marginTop: 10 }}
-          onPress={() =>
-            navigation.navigate('ProductDetail', { slug: r.product.slug })
-          }
-        >
-          {r.product.image ? (
-            <Image
-              source={{ uri: mediaUrl(r.product.image) }}
+      {rows?.map(r => {
+        const ready = r.status === 'READY';
+        return (
+          <Card
+            key={r.id}
+            style={styles.row}
+            onPress={() => navigation.navigate('ProductDetail', { slug: r.product.slug })}
+          >
+            <SmartImage
+              uri={r.product.image ? mediaUrl(r.product.image) : null}
               style={styles.img}
+              resizeMode="contain"
+              icon="pill"
+              iconSize={22}
             />
-          ) : (
-            <View style={[styles.img, { backgroundColor: colors.brandSoft }]} />
-          )}
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={2} style={styles.name}>
-              {r.product.name}
-            </Text>
-            <Text style={styles.price}>{formatPrice(r.product.price)}</Text>
-            <Badge
-              label={r.status === 'READY' ? 'Back in stock!' : 'Watching'}
-              tone={r.status === 'READY' ? 'green' : 'gold'}
-            />
-          </View>
-        </Card>
-      ))}
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={2} style={styles.name}>
+                {r.product.name}
+              </Text>
+              <View style={styles.rowFoot}>
+                <Text style={styles.price}>{formatPrice(r.product.price)}</Text>
+                <Badge label={ready ? 'Back in stock' : 'Watching'} tone={ready ? 'green' : 'gold'} dot />
+              </View>
+            </View>
+          </Card>
+        );
+      })}
       {rows && rows.length === 0 ? (
         <EmptyView
+          icon="bell"
           title="No alerts yet"
           hint="Subscribe on any out-of-stock product to get notified."
         />
@@ -216,17 +202,16 @@ export function NotificationsScreen({ navigation }: NotifyProps) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  h2: { fontSize: 20, fontWeight: '800', color: colors.ink },
-  sub: { fontSize: 13, color: colors.inkMuted, marginTop: 6, marginBottom: 14 },
-  img: { width: 64, height: 64, borderRadius: 10 },
-  name: { fontSize: 13.5, fontWeight: '600', color: colors.ink },
-  price: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.forest,
-    marginTop: 4,
-  },
-  remove: { fontSize: 12, color: colors.danger, fontWeight: '600' },
+  count: { fontSize: 12.5, fontWeight: '700', color: colors.inkMuted, marginBottom: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  h3: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  sub: { fontSize: 12.5, color: colors.inkMuted, marginTop: 3 },
+  row: { flexDirection: 'row', gap: 12, padding: 12, marginTop: 12, alignItems: 'center' },
+  rowFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  img: { width: 64, height: 64, borderRadius: radii.md, backgroundColor: colors.surfaceAlt },
+  name: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  price: { fontSize: 15, fontWeight: '800', color: colors.ink },
   err: {
     color: colors.danger,
     fontSize: 13,

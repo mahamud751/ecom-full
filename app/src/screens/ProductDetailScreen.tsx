@@ -1,9 +1,9 @@
 /** Product detail — gallery, price, variants, add to cart, Rx notice. */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Dimensions,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,9 +13,20 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
 import { mediaUrl } from '../config';
-import { Badge, Button, ErrorView, Loading } from '../components/ui';
+import { AppIcon, type IconName } from '../components/AppIcon';
+import {
+  Badge,
+  Button,
+  ErrorView,
+  IconButton,
+  IconTile,
+  Loading,
+  SmartImage,
+  Stepper,
+} from '../components/ui';
+import { useWishlist } from '../store/wishlist';
 import { useCart } from '../store/cart';
-import { colors, discountPercent, formatPrice, radii } from '../theme';
+import { colors, discountPercent, formatPrice, radii, shadows } from '../theme';
 import type { ProductDetail } from '../types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
@@ -32,6 +43,27 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const [qty, setQty] = useState(1);
   const [variantId, setVariantId] = useState<string | null>(null);
   const add = useCart(s => s.add);
+  const cartCount = useCart(s => s.count());
+  const wished = useWishlist(s => s.ids.includes(product?.id ?? ''));
+  const toggleWish = useWishlist(s => s.toggle);
+  const [slide, setSlide] = useState(0);
+  const toast = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    Animated.spring(toast, { toValue: 1, useNativeDriver: true, speed: 16, bounciness: 8 }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toast, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+    }, 2600);
+  };
+
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     http
@@ -85,7 +117,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       qty,
     );
     if (goCheckout) navigation.navigate('Checkout');
-    else Alert.alert('Added to cart', product!.name);
+    else showToast();
   }
 
   const images = product.images?.length
@@ -94,106 +126,153 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     ? [product.image]
     : [];
 
+  const perks: { icon: IconName; t: string; s: string }[] = [
+    { icon: 'shield', t: '100% genuine', s: 'Sourced from brands' },
+    { icon: 'truck', t: product.expressDelivery ? 'Express' : '12–24h', s: 'Fast delivery' },
+    { icon: 'wallet', t: 'COD', s: 'Pay on delivery' },
+  ];
+
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
       >
-        {images.length > 0 ? (
+        <View style={styles.gallery}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             pagingEnabled
+            onMomentumScrollEnd={e =>
+              setSlide(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH))
+            }
           >
-            {images.map((img, i) => (
-              <Image
-                key={i}
-                source={{ uri: mediaUrl(img) }}
-                style={styles.hero}
-              />
+            {(images.length ? images : [null]).map((img, i) => (
+              <View key={i} style={styles.slide}>
+                <SmartImage
+                  uri={img ? mediaUrl(img) : null}
+                  style={styles.heroImg}
+                  resizeMode="contain"
+                  icon="pill"
+                  iconSize={72}
+                />
+              </View>
             ))}
           </ScrollView>
-        ) : (
-          <View style={[styles.hero, { backgroundColor: colors.brandSoft }]} />
-        )}
+          {images.length > 1 ? (
+            <View style={styles.dots}>
+              {images.map((_, i) => (
+                <View key={i} style={[styles.dot, i === slide && styles.dotActive]} />
+              ))}
+            </View>
+          ) : null}
+        </View>
 
-        <View style={styles.body}>
-          <View style={styles.rowBetween}>
+        <View style={styles.sheet}>
+          <View style={styles.badges}>
             {pct > 0 ? <Badge label={`${pct}% OFF`} tone="red" /> : null}
             {product.requiresPrescription ? (
-              <Badge label="Rx required" tone="forest" />
+              <Badge label="Rx required" tone="forest" dot />
             ) : null}
             {product.expressDelivery ? (
-              <Badge label="Express 12–24h" tone="green" />
+              <Badge label="Express 12–24h" tone="green" dot />
+            ) : null}
+            {stock <= 0 ? (
+              <Badge label="Out of stock" tone="red" />
+            ) : stock <= 10 ? (
+              <Badge label={`Only ${stock} left`} tone="gold" />
             ) : null}
           </View>
 
-          <Text style={styles.name}>{product.name}</Text>
           {product.brand?.name ? (
-            <Text style={styles.brand}>by {product.brand.name}</Text>
+            <Text style={styles.brand}>{product.brand.name}</Text>
+          ) : null}
+          <Text style={styles.name}>{product.name}</Text>
+          {product.genericName ? (
+            <Text style={styles.generic}>{product.genericName}</Text>
+          ) : null}
+
+          {typeof product.rating === 'number' && product.rating > 0 ? (
+            <View style={styles.ratingRow}>
+              <AppIcon name="star" size={15} filled color={colors.goldStar} />
+              <Text style={styles.ratingVal}>{product.rating.toFixed(1)}</Text>
+              {product.reviewCount ? (
+                <Text style={styles.ratingCount}>({product.reviewCount} reviews)</Text>
+              ) : null}
+            </View>
           ) : null}
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>{formatPrice(price)}</Text>
-            {compare && compare > price ? (
-              <Text style={styles.compare}>{formatPrice(compare)}</Text>
-            ) : null}
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+                <Text style={styles.price}>{formatPrice(price)}</Text>
+                {compare && compare > price ? (
+                  <Text style={styles.compare}>{formatPrice(compare)}</Text>
+                ) : null}
+              </View>
+              {compare && compare > price ? (
+                <Text style={styles.save}>You save {formatPrice(compare - price)}</Text>
+              ) : (
+                <Text style={styles.saveMuted}>Inclusive of all taxes</Text>
+              )}
+            </View>
+            <Stepper
+              value={qty}
+              onDec={() => setQty(q => Math.max(1, q - 1))}
+              onInc={() => setQty(q => Math.min(stock || 99, q + 1))}
+            />
           </View>
 
           {product.variants && product.variants.length > 0 ? (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.label}>Variant</Text>
+            <View style={{ marginTop: 22 }}>
+              <Text style={styles.label}>Choose variant</Text>
               <View style={styles.variantRow}>
-                {product.variants.map(v => (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => setVariantId(v.id)}
-                    style={[
-                      styles.variant,
-                      variantId === v.id && styles.variantActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.variantText,
-                        variantId === v.id && { color: colors.white },
-                      ]}
+                {product.variants.map(v => {
+                  const on = variantId === v.id;
+                  return (
+                    <Pressable
+                      key={v.id}
+                      onPress={() => setVariantId(v.id)}
+                      style={[styles.variant, on && styles.variantActive]}
                     >
-                      {v.name} · {formatPrice(v.price)}
-                    </Text>
-                  </Pressable>
-                ))}
+                      <Text style={[styles.variantName, on && { color: colors.forest }]}>
+                        {v.name}
+                      </Text>
+                      <Text style={styles.variantPrice}>{formatPrice(v.price)}</Text>
+                      {on ? (
+                        <View style={styles.variantCheck}>
+                          <AppIcon name="check" color={colors.white} size={10} strokeWidth={3} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           ) : null}
 
-          <View style={styles.qtyRow}>
-            <Text style={styles.label}>Quantity</Text>
-            <View style={styles.qtyCtl}>
-              <Pressable
-                style={styles.qtyBtn}
-                onPress={() => setQty(q => Math.max(1, q - 1))}
-              >
-                <Text style={styles.qtyBtnText}>−</Text>
-              </Pressable>
-              <Text style={styles.qtyVal}>{qty}</Text>
-              <Pressable
-                style={styles.qtyBtn}
-                onPress={() => setQty(q => Math.min(stock || 99, q + 1))}
-              >
-                <Text style={styles.qtyBtnText}>+</Text>
-              </Pressable>
-            </View>
+          <View style={styles.perks}>
+            {perks.map(p => (
+              <View key={p.t} style={styles.perk}>
+                <IconTile name={p.icon} size={36} />
+                <Text style={styles.perkT}>{p.t}</Text>
+                <Text style={styles.perkS}>{p.s}</Text>
+              </View>
+            ))}
           </View>
 
-          {stock <= 0 ? (
-            <Badge label="Out of stock" tone="red" />
-          ) : stock <= 10 ? (
-            <Badge label={`Hurry — only ${stock} left`} tone="gold" />
+          {product.requiresPrescription ? (
+            <View style={styles.rxNote}>
+              <AppIcon name="file" color={colors.goldDeep} size={20} />
+              <Text style={styles.rxText}>
+                This medicine needs a valid prescription. Our pharmacist will verify it
+                with you after you order.
+              </Text>
+            </View>
           ) : null}
 
           {product.description ? (
-            <View style={{ marginTop: 18 }}>
+            <View style={{ marginTop: 22 }}>
               <Text style={styles.label}>About this product</Text>
               <Text style={styles.desc}>{product.description}</Text>
             </View>
@@ -201,19 +280,62 @@ export function ProductDetailScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
+      <View style={[styles.topBar, { top: insets.top + 8 }]}>
+        <IconButton name="back" onPress={() => navigation.goBack()} />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <IconButton
+            name="heart"
+            iconColor={wished ? colors.discount : colors.ink}
+            onPress={() => toggleWish(product.id)}
+          />
+          <IconButton
+            name="cart"
+            badge={cartCount}
+            onPress={() => navigation.navigate('Tabs', { screen: 'Cart' })}
+          />
+        </View>
+      </View>
+
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          styles.toast,
+          {
+            bottom: 96 + insets.bottom,
+            opacity: toast,
+            transform: [{ translateY: toast.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+          },
+        ]}
+      >
+        <View style={styles.toastIcon}>
+          <AppIcon name="check" color={colors.forestDeep} size={14} strokeWidth={3} />
+        </View>
+        <Text style={styles.toastText} numberOfLines={1}>
+          Added to cart
+        </Text>
+        <Pressable onPress={() => navigation.navigate('Tabs', { screen: 'Cart' })} hitSlop={8}>
+          <Text style={styles.toastAction}>View cart</Text>
+        </Pressable>
+      </Animated.View>
+
       <View style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}>
+        <View style={{ flex: 0.9 }}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.total}>{formatPrice(price * qty)}</Text>
+        </View>
         <Button
-          label={`Add to cart · ${formatPrice(price * qty)}`}
+          label="Add"
+          icon="cart"
+          variant="outline"
           onPress={() => addToCart(false)}
           disabled={stock <= 0}
           style={{ flex: 1 }}
         />
         <Button
           label="Buy now"
-          variant="gold"
           onPress={() => addToCart(true)}
           disabled={stock <= 0}
-          style={{ flex: 1 }}
+          style={{ flex: 1.1 }}
         />
       </View>
     </View>
@@ -221,76 +343,169 @@ export function ProductDetailScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.ivory },
-  hero: { width: SCREEN_WIDTH, height: 340 },
-  body: { padding: 16 },
-  rowBetween: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  name: { fontSize: 20, fontWeight: '800', color: colors.ink, lineHeight: 26 },
-  brand: { fontSize: 13, color: colors.inkMuted, marginTop: 4 },
+  root: { flex: 1, backgroundColor: colors.surface },
+  gallery: { backgroundColor: colors.surfaceAlt, paddingBottom: 36 },
+  slide: {
+    width: SCREEN_WIDTH,
+    height: 400,
+    paddingTop: 70,
+    paddingHorizontal: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroImg: { width: '100%', height: '100%', borderRadius: radii.xl },
+  dots: {
+    position: 'absolute',
+    bottom: 48,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.line },
+  dotActive: { width: 18, backgroundColor: colors.forest },
+  topBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sheet: {
+    marginTop: -24,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+  },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  brand: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.forestMid,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  name: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.ink,
+    lineHeight: 28,
+    letterSpacing: -0.4,
+  },
+  generic: { fontSize: 13.5, color: colors.inkMuted, marginTop: 4 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
+  ratingVal: { fontSize: 13.5, fontWeight: '800', color: colors.ink },
+  ratingCount: { fontSize: 12.5, color: colors.inkMuted },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
+    marginTop: 18,
+    paddingTop: 18,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
   },
-  price: { fontSize: 24, fontWeight: '800', color: colors.forest },
+  price: { fontSize: 28, fontWeight: '800', color: colors.ink, letterSpacing: -0.6 },
   compare: {
     fontSize: 15,
-    color: colors.inkMuted,
+    color: colors.inkFaint,
     textDecorationLine: 'line-through',
   },
+  save: { fontSize: 12.5, color: colors.lime, fontWeight: '700', marginTop: 2 },
+  saveMuted: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
   label: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: colors.ink,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  variantRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  variantRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   variant: {
-    borderWidth: 1,
+    minWidth: 96,
+    borderWidth: 1.5,
     borderColor: colors.line,
-    borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     backgroundColor: colors.surface,
   },
-  variantActive: { backgroundColor: colors.forest, borderColor: colors.forest },
-  variantText: { fontSize: 12.5, fontWeight: '600', color: colors.ink },
-  qtyRow: {
-    marginTop: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  qtyCtl: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  qtyBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: colors.line,
+  variantActive: { borderColor: colors.forest, backgroundColor: colors.brandSoft },
+  variantName: { fontSize: 13.5, fontWeight: '700', color: colors.ink },
+  variantPrice: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
+  variantCheck: {
+    position: 'absolute',
+    top: -7,
+    right: -7,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.forest,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
   },
-  qtyBtnText: { fontSize: 18, color: colors.forest, fontWeight: '700' },
-  qtyVal: {
-    fontSize: 16,
-    fontWeight: '700',
-    minWidth: 20,
-    textAlign: 'center',
+  perks: {
+    flexDirection: 'row',
+    marginTop: 22,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    paddingVertical: 14,
   },
-  desc: { fontSize: 14, lineHeight: 21, color: colors.ink },
+  perk: { flex: 1, alignItems: 'center' },
+  perkT: { fontSize: 12.5, fontWeight: '800', color: colors.ink, marginTop: 8 },
+  perkS: { fontSize: 10.5, color: colors.inkMuted, marginTop: 1 },
+  rxNote: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    backgroundColor: colors.goldSoft,
+    borderRadius: radii.md,
+    padding: 14,
+    marginTop: 16,
+  },
+  rxText: { flex: 1, fontSize: 12.5, color: colors.inkSoft, lineHeight: 18 },
+  desc: { fontSize: 14.5, lineHeight: 22, color: colors.inkSoft },
   footer: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    ...shadows.float,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.1,
   },
+  toast: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.forestDeep,
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...shadows.float,
+  },
+  toastIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastText: { flex: 1, color: colors.white, fontSize: 14, fontWeight: '700' },
+  toastAction: { color: colors.gold, fontSize: 13.5, fontWeight: '800' },
+  totalLabel: { fontSize: 11.5, color: colors.inkMuted, fontWeight: '600' },
+  total: { fontSize: 19, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
 });

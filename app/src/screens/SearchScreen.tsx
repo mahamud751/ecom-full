@@ -8,6 +8,7 @@ import {
   PermissionsAndroid,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -24,9 +25,9 @@ import Voice, {
 } from '@react-native-voice/voice';
 import { http } from '../api/client';
 import { mediaUrl } from '../config';
-import { AppIcon } from '../components/AppIcon';
-import { EmptyView, Loading } from '../components/ui';
-import { colors, formatPrice, radii } from '../theme';
+import { AppIcon, type IconName } from '../components/AppIcon';
+import { Chip, EmptyView, IconTile, Loading, SmartImage } from '../components/ui';
+import { colors, formatPrice, radii, shadows } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
 
@@ -236,48 +237,66 @@ export function SearchScreen({ navigation }: Props) {
     else if (hit.type === 'lab') navigation.navigate('Lab');
   }
 
+  const hitIcon = (t: Hit['type']): IconName =>
+    t === 'doctor' ? 'stethoscope' : t === 'lab' ? 'flask' : 'pill';
+
   return (
     <View style={styles.root}>
       <View style={styles.bar}>
-        <TextInput
-          autoFocus
-          value={q}
-          onChangeText={setQ}
-          placeholder="Search medicines, doctors, tests…"
-          placeholderTextColor={colors.inkMuted}
-          returnKeyType="search"
-          onSubmitEditing={() => void search(q)}
-          style={styles.input}
-        />
-        <Pressable
-          onPress={() => void toggleVoice()}
-          style={[styles.iconBtn, listening && styles.iconBtnActive]}
-          hitSlop={6}
-          accessibilityLabel="Search by voice"
-        >
-          <AppIcon
-            name="mic"
-            color={listening ? colors.white : colors.forestMid}
-            size={19}
-            filled={listening}
+        <View style={styles.field}>
+          <AppIcon name="search" color={colors.forest} size={19} />
+          <TextInput
+            autoFocus
+            value={q}
+            onChangeText={setQ}
+            placeholder="Medicines, doctors…"
+            placeholderTextColor={colors.inkFaint}
+            returnKeyType="search"
+            onSubmitEditing={() => void search(q)}
+            style={styles.input}
           />
-        </Pressable>
+          {q.length > 0 ? (
+            <Pressable onPress={() => setQ('')} hitSlop={8} style={styles.clear}>
+              <AppIcon name="close" color={colors.inkMuted} size={13} strokeWidth={2.6} />
+            </Pressable>
+          ) : null}
+          <View style={styles.fieldDivider} />
+          <Pressable
+            onPress={() => void toggleVoice()}
+            style={[styles.iconBtn, listening && styles.iconBtnActive]}
+            hitSlop={6}
+            accessibilityLabel="Search by voice"
+          >
+            <AppIcon
+              name="mic"
+              color={listening ? colors.white : colors.forestMid}
+              size={18}
+              filled={listening}
+            />
+          </Pressable>
+          <Pressable
+            onPress={pickImage}
+            style={styles.iconBtn}
+            hitSlop={6}
+            accessibilityLabel="Search by image"
+          >
+            <AppIcon name="camera" color={colors.forestMid} size={18} />
+          </Pressable>
+        </View>
         <Pressable
-          onPress={pickImage}
-          style={styles.iconBtn}
-          hitSlop={6}
-          accessibilityLabel="Search by image"
+          onPress={() => void search(q)}
+          style={({ pressed }) => [styles.goBtn, pressed && { opacity: 0.85 }]}
+          accessibilityLabel="Search"
         >
-          <AppIcon name="camera" color={colors.forestMid} size={19} />
-        </Pressable>
-        <Pressable onPress={() => void search(q)} style={styles.goBtn}>
-          <Text style={styles.goText}>Search</Text>
+          <AppIcon name="arrowRight" color={colors.white} size={20} strokeWidth={2.2} />
         </Pressable>
       </View>
 
       {listening ? (
         <View style={styles.listeningRow}>
-          <ActivityIndicator size="small" color={colors.forest} />
+          <View style={styles.pulse}>
+            <AppIcon name="mic" color={colors.white} size={16} filled />
+          </View>
           <Text style={styles.listeningText}>Listening… speak now</Text>
         </View>
       ) : null}
@@ -297,8 +316,8 @@ export function SearchScreen({ navigation }: Props) {
               </Text>
             ) : null}
           </View>
-          <Pressable onPress={clearImage} hitSlop={8}>
-            <Text style={styles.imgClear}>Clear</Text>
+          <Pressable onPress={clearImage} hitSlop={8} style={styles.clear}>
+            <AppIcon name="close" color={colors.inkMuted} size={13} strokeWidth={2.6} />
           </Pressable>
         </View>
       ) : null}
@@ -308,15 +327,20 @@ export function SearchScreen({ navigation }: Props) {
           {sugs.slice(0, 8).map((s, i) => (
             <Pressable
               key={i}
-              style={styles.sugRow}
+              style={({ pressed }) => [
+                styles.sugRow,
+                i === Math.min(sugs.length, 8) - 1 && { borderBottomWidth: 0 },
+                pressed && { backgroundColor: colors.surfaceAlt },
+              ]}
               onPress={() => void search(s.label)}
             >
               {s.image ? (
-                <Image
-                  source={{ uri: mediaUrl(s.image) }}
-                  style={styles.sugImg}
-                />
-              ) : null}
+                <SmartImage uri={mediaUrl(s.image)} style={styles.sugImg} icon="pill" iconSize={14} />
+              ) : (
+                <View style={styles.sugIcon}>
+                  <AppIcon name="search" color={colors.inkMuted} size={14} />
+                </View>
+              )}
               <Text style={styles.sugLabel} numberOfLines={1}>
                 {s.label}
               </Text>
@@ -331,6 +355,7 @@ export function SearchScreen({ navigation }: Props) {
       ) : hits ? (
         hits.length === 0 ? (
           <EmptyView
+            icon="search"
             title="No results"
             hint={`Nothing matched “${q}”. Try another term.`}
           />
@@ -338,145 +363,224 @@ export function SearchScreen({ navigation }: Props) {
           <FlatList
             data={hits}
             keyExtractor={h => `${h.type}-${h.id}`}
-            contentContainerStyle={{ padding: 12, paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <Text style={styles.resultCount}>
+                {hits.length} result{hits.length > 1 ? 's' : ''}
+              </Text>
+            }
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
             renderItem={({ item }) => (
-              <Pressable style={styles.hit} onPress={() => openHit(item)}>
-                {item.image ? (
-                  <Image
-                    source={{ uri: mediaUrl(item.image) }}
-                    style={styles.hitImg}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.hitImg,
-                      { backgroundColor: colors.brandSoft },
-                    ]}
-                  />
-                )}
+              <Pressable
+                style={({ pressed }) => [styles.hit, pressed && { transform: [{ scale: 0.985 }] }]}
+                onPress={() => openHit(item)}
+              >
+                <SmartImage
+                  uri={item.image ? mediaUrl(item.image) : null}
+                  style={styles.hitImg}
+                  resizeMode="contain"
+                  icon={hitIcon(item.type)}
+                  iconSize={24}
+                />
                 <View style={{ flex: 1 }}>
+                  <View style={styles.hitType}>
+                    <AppIcon name={hitIcon(item.type)} color={colors.forestMid} size={11} />
+                    <Text style={styles.hitTypeText}>{item.type}</Text>
+                  </View>
                   <Text style={styles.hitTitle} numberOfLines={2}>
                     {item.title}
                   </Text>
                   {item.subtitle ? (
-                    <Text style={styles.hitSub}>{item.subtitle}</Text>
+                    <Text style={styles.hitSub} numberOfLines={1}>
+                      {item.subtitle}
+                    </Text>
                   ) : null}
                 </View>
                 {typeof item.price === 'number' ? (
                   <Text style={styles.hitPrice}>{formatPrice(item.price)}</Text>
-                ) : null}
+                ) : (
+                  <AppIcon name="chevronRight" color={colors.inkFaint} size={18} />
+                )}
               </Pressable>
             )}
           />
         )
       ) : (
-        <EmptyView
-          title="Search Ahona"
-          hint="Medicines, beauty, doctors and lab tests — all in one place."
-        />
+        <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.blockTitle}>Popular searches</Text>
+          <View style={styles.popular}>
+            {POPULAR.map(p => (
+              <Chip key={p} label={p} icon="search" onPress={() => { setQ(p); void search(p); }} />
+            ))}
+          </View>
+          <Text style={[styles.blockTitle, { marginTop: 26 }]}>Search smarter</Text>
+          <View style={styles.tips}>
+            {[
+              { icon: 'mic' as const, t: 'Say it', s: 'Tap the mic and speak a medicine name' },
+              { icon: 'camera' as const, t: 'Snap it', s: 'Photograph a strip or box to find it' },
+              { icon: 'stethoscope' as const, t: 'Find a doctor', s: 'Search by name or specialty' },
+            ].map((x, i) => (
+              <View key={x.t} style={[styles.tip, i > 0 && styles.tipDivider]}>
+                <IconTile name={x.icon} size={40} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tipT}>{x.t}</Text>
+                  <Text style={styles.tipS}>{x.s}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       )}
     </View>
   );
 }
 
+const POPULAR = ['Napa', 'Vitamin C', 'Sunscreen', 'Baby diaper', 'Seclo', 'Face wash', 'Protein'];
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ivory },
-  bar: { flexDirection: 'row', gap: 8, padding: 12 },
-  input: {
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 14 },
+  field: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.ink,
+    borderWidth: 1.5,
+    borderColor: colors.forestMid,
+    borderRadius: radii.lg,
+    paddingLeft: 14,
+    paddingRight: 5,
+    height: 52,
   },
-  goBtn: {
-    backgroundColor: colors.forest,
-    borderRadius: radii.pill,
-    paddingHorizontal: 16,
+  input: { flex: 1, fontSize: 15, color: colors.ink, paddingVertical: 0, marginLeft: 4 },
+  clear: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.lineSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  goText: { color: colors.white, fontWeight: '700', fontSize: 13 },
+  fieldDivider: { width: 1, height: 22, backgroundColor: colors.line, marginHorizontal: 4 },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconBtnActive: {
+  iconBtnActive: { backgroundColor: colors.forest },
+  goBtn: {
+    width: 52,
+    height: 52,
     backgroundColor: colors.forest,
-    borderColor: colors.forest,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.glow,
   },
   listeningRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 12,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: colors.brandLight,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.forest,
   },
-  listeningText: { fontSize: 12.5, color: colors.forest, fontWeight: '700' },
+  pulse: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.forest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listeningText: { fontSize: 13.5, color: colors.forest, fontWeight: '700' },
   imgPreviewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 12,
-    marginBottom: 10,
-    padding: 8,
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 10,
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineSoft,
+    ...shadows.card,
   },
-  imgPreview: { width: 44, height: 44, borderRadius: 8 },
+  imgPreview: { width: 48, height: 48, borderRadius: 10 },
   imgUploadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  imgTip: { fontSize: 12, color: colors.inkMuted, flexShrink: 1 },
-  imgClear: { fontSize: 12.5, fontWeight: '700', color: colors.danger },
+  imgTip: { fontSize: 12.5, color: colors.inkMuted, flexShrink: 1 },
   sugList: {
-    marginHorizontal: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
     backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineSoft,
+    overflow: 'hidden',
+    ...shadows.card,
   },
   sugRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
   },
-  sugImg: { width: 30, height: 30, borderRadius: 6 },
-  sugLabel: { flex: 1, fontSize: 13.5, color: colors.ink },
+  sugImg: { width: 34, height: 34, borderRadius: 8 },
+  sugIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: colors.lineSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sugLabel: { flex: 1, fontSize: 14, color: colors.ink, fontWeight: '500' },
   sugMeta: { fontSize: 12, color: colors.forestMid, fontWeight: '700' },
+  resultCount: { fontSize: 12.5, fontWeight: '700', color: colors.inkMuted, marginBottom: 10 },
   hit: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineSoft,
     padding: 10,
-    marginBottom: 8,
+    marginBottom: 10,
+    ...shadows.card,
   },
-  hitImg: { width: 54, height: 54, borderRadius: 8 },
-  hitTitle: { fontSize: 13.5, fontWeight: '600', color: colors.ink },
+  hitImg: { width: 62, height: 62, borderRadius: radii.md, backgroundColor: colors.surfaceAlt },
+  hitType: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
+  hitTypeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.forestMid,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  hitTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, lineHeight: 19 },
   hitSub: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
-  hitPrice: { fontSize: 14, fontWeight: '800', color: colors.forest },
+  hitPrice: { fontSize: 15, fontWeight: '800', color: colors.ink },
+  blockTitle: { fontSize: 16, fontWeight: '800', color: colors.ink, marginBottom: 12 },
+  popular: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tips: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    ...shadows.card,
+  },
+  tip: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+  tipDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  tipT: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  tipS: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
 });
