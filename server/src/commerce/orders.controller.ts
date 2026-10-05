@@ -181,6 +181,9 @@ export class OrdersController {
       if (!items?.length) {
         throw new ApiError(400, "Cart is empty");
       }
+      if (items.length > 100) {
+        throw new ApiError(400, "Too many items in one order");
+      }
 
       const productIds = items.map((i) => i.productId);
       const products = await this.prisma.product.findMany({
@@ -269,7 +272,9 @@ export class OrdersController {
             customerId: session?.sub || null,
             customerName: customerName.trim(),
             customerPhone: customerPhone.trim(),
-            customerEmail: customerEmail?.trim() || session?.email || null,
+            // Stored lowercase so "my orders" can match it with an index.
+            customerEmail:
+              customerEmail?.trim().toLowerCase() || session?.email || null,
             address: address.trim(),
             city: city?.trim() || "Dhaka",
             area: area?.trim() || null,

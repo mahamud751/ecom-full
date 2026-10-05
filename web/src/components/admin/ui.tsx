@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 export function AdminCard({
@@ -238,4 +239,67 @@ export function Empty({ text }: { text: string }) {
       {text}
     </div>
   );
+}
+
+/** Page info returned by paginated admin list endpoints. */
+export type Pagination = {
+  page: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+};
+
+/** Prev / next pager for admin lists; hidden while everything fits one page. */
+export function Pager({
+  pagination,
+  onPage,
+  disabled,
+}: {
+  pagination?: Pagination | null;
+  onPage: (page: number) => void;
+  disabled?: boolean;
+}) {
+  if (!pagination || pagination.totalPages <= 1) return null;
+  const { page, totalPages, total, perPage } = pagination;
+  const from = (page - 1) * perPage + 1;
+  const to = Math.min(total, page * perPage);
+  return (
+    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-[var(--ink-muted)]">
+      <span>
+        {from.toLocaleString()}–{to.toLocaleString()} of{" "}
+        {total.toLocaleString()}
+      </span>
+      <div className="flex items-center gap-2">
+        <Btn
+          variant="secondary"
+          disabled={disabled || page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          Prev
+        </Btn>
+        <span className="font-bold text-[var(--ink)]">
+          {page} / {totalPages.toLocaleString()}
+        </span>
+        <Btn
+          variant="secondary"
+          disabled={disabled || page >= totalPages}
+          onClick={() => onPage(page + 1)}
+        >
+          Next
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Current page for a filtered list. Changing `filterKey` (e.g. status or
+ * search) snaps back to page 1 in the same render, so there's no extra fetch
+ * of the old page under the new filter.
+ */
+export function useListPage(filterKey: string) {
+  const [state, setState] = useState({ key: filterKey, page: 1 });
+  const page = state.key === filterKey ? state.page : 1;
+  const setPage = (next: number) => setState({ key: filterKey, page: next });
+  return [page, setPage] as const;
 }

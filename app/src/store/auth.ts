@@ -8,6 +8,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { http, apiErrorMessage, setAccessToken, saveRefreshToken, loadRefreshToken } from "../api/client";
 import { mmkvStorage } from "../lib/storage";
 import type { User } from "../types";
+import { unregisterFromPush } from "../lib/push";
 
 type AuthState = {
   user: User | null;
@@ -60,6 +61,8 @@ export const useAuth = create<AuthState>()(
       },
 
       logout: async () => {
+        // Stop doctor calls ringing this phone for the old account.
+        await unregisterFromPush();
         const refreshToken = loadRefreshToken();
         try {
           if (refreshToken) await http.post("/auth/logout", { refreshToken });

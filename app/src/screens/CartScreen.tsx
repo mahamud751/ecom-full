@@ -5,7 +5,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { AppIcon } from '../components/AppIcon';
 import { tabBarSpace } from '../components/FluidTabBar';
 import { Button, EmptyView, SmartImage, Stepper } from '../components/ui';
@@ -64,7 +64,7 @@ export function CartScreen({ navigation }: TabScreenProps<'Cart'>) {
                 style={styles.row}
               >
                 <SmartImage
-                  uri={i.image ? mediaUrl(i.image) : null}
+                  uri={i.image ? thumbUrl(i.image, 86) : null}
                   style={styles.img}
                   resizeMode="contain"
                   icon="pill"

@@ -10,6 +10,7 @@ import { LabModule } from "./lab/lab.module";
 import { ConsultModule } from "./consult/consult.module";
 import { AdminModule } from "./admin/admin.module";
 import { UploadModule } from "./upload/upload.module";
+import { PushModule } from "./push/push.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UploadModule } from "./upload/upload.module";
     SearchModule,
     CommerceModule,
     LabModule,
+    PushModule,
     ConsultModule,
     AdminModule,
     UploadModule,

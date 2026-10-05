@@ -9,6 +9,9 @@ import {
   Badge,
   Empty,
   StatCard,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { formatPrice } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -31,12 +34,18 @@ export default function AdminSettlementsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  const [page, setPage] = useListPage("");
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const d = await adminFetch("/admin/settlements").then((r) => r.json());
+    const d = await adminFetch(`/admin/settlements?page=${page}`).then((r) =>
+      r.json(),
+    );
     setRows(d.settlements || []);
+    setPageInfo(d.pagination ?? null);
     setLoading(false);
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     void load();
@@ -144,6 +153,11 @@ export default function AdminSettlementsPage() {
           ))}
         </div>
       )}
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

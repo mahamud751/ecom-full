@@ -101,18 +101,7 @@ export class SearchController {
 
     try {
       const [products, doctors, tests, packages] = await Promise.all([
-        this.prisma.product.findMany({
-          where: {
-            isActive: true,
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { tags: { hasSome: [q.toLowerCase()] } },
-            ],
-          },
-          select: { name: true, slug: true, image: true, price: true },
-          take: 5,
-          orderBy: { reviewCount: "desc" },
-        }),
+        this.smartSearch.suggestProducts(q),
         this.prisma.doctor.findMany({
           where: {
             isActive: true,

@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { TtlCache } from "../common/ttl-cache";
 
 export type SearchHitType = "product" | "doctor" | "lab_test" | "lab_package";
 
@@ -76,9 +78,141 @@ export function expandQuery(q: string): string[] {
   return Array.from(new Set([...base, ...extra]));
 }
 
+/**
+ * SQL condition "product name contains this token", shaped so the trigram
+ * index on name can serve it: 3+ chars → substring, 2 chars → prefix (a
+ * 2-char substring has no trigram to look up and would scan every row).
+ * tokens() strips everything but letters, digits, + and -, so no LIKE
+ * wildcards reach the pattern.
+ */
+function nameMatch(t: string): Prisma.Sql {
+  return t.length >= 3
+    ? Prisma.sql`p."name" ILIKE ${`%${t}%`}`
+    : Prisma.sql`p."name" ILIKE ${`${t}%`}`;
+}
+
+/** Ranked candidates scanned before scoring; bounds work on broad terms. */
+const CANDIDATE_CAP = 3000;
+const PRODUCT_HITS = 60;
+
 @Injectable()
 export class SmartSearchService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Runs a candidate query with sequential scans disabled. With a LIMIT and
+   * no ORDER BY, Postgres bets that matches turn up early in a full scan;
+   * for selective terms that bet loses (~0.5s at 1M rows vs ~40ms through
+   * the trigram/GIN bitmap). SET LOCAL scopes it to this one transaction.
+   */
+  private viaIndexes<T>(query: Prisma.Sql): Promise<T> {
+    return this.prisma
+      .$transaction([
+        this.prisma.$executeRaw`SET LOCAL enable_seqscan = off`,
+        this.prisma.$queryRaw<T>(query),
+      ])
+      .then(([, rows]) => rows);
+  }
+
+  private readonly lookupCache = new TtlCache<{ id: string; name: string }[]>(
+    5 * 60_000,
+    2,
+  );
+  private readonly fallbackCache = new TtlCache<
+    Awaited<ReturnType<SmartSearchService["loadFallbackProducts"]>>
+  >(5 * 60_000, 1);
+
+  private brandsAndCategories() {
+    return Promise.all([
+      this.lookupCache.get("brands", () =>
+        this.prisma.brand.findMany({ select: { id: true, name: true } }),
+      ),
+      this.lookupCache.get("categories", () =>
+        this.prisma.category.findMany({ select: { id: true, name: true } }),
+      ),
+    ]);
+  }
+
+  /**
+   * Ids of the best-matching active products, best first. Strong matches
+   * (name / tag / brand) come from the trigram + GIN indexes, ranked by how
+   * many tokens the name contains, then popularity. Category-name matches
+   * only top up the list when strong matches are scarce.
+   */
+  private async productCandidates(toks: string[]): Promise<string[]> {
+    const [brands, categories] = await this.brandsAndCategories();
+    const brandIds = brands
+      .filter((b) => toks.some((t) => b.name.toLowerCase().includes(t)))
+      .map((b) => b.id);
+    const categoryIds = categories
+      .filter((c) => toks.some((t) => c.name.toLowerCase().includes(t)))
+      .map((c) => c.id);
+
+    const strong: Prisma.Sql[] = [
+      ...toks.map(nameMatch),
+      Prisma.sql`p."tags" && ${toks}::text[]`,
+    ];
+    if (brandIds.length) {
+      strong.push(Prisma.sql`p."brandId" = ANY(${brandIds}::text[])`);
+    }
+    const nameHits = Prisma.join(
+      toks.map((t) => Prisma.sql`(${nameMatch(t)})::int`),
+      " + ",
+    );
+
+    const rows = await this.viaIndexes<{ id: string }[]>(Prisma.sql`
+      WITH c AS MATERIALIZED (
+        SELECT p."id", p."name", p."reviewCount" FROM "Product" p
+        WHERE p."isActive" AND (${Prisma.join(strong, " OR ")})
+        LIMIT ${CANDIDATE_CAP}
+      )
+      SELECT p."id" FROM c p
+      ORDER BY ${nameHits} DESC, p."reviewCount" DESC
+      LIMIT ${PRODUCT_HITS}`);
+    const ids = rows.map((r) => r.id);
+
+    if (ids.length < PRODUCT_HITS && categoryIds.length) {
+      const extra = await this.prisma.product.findMany({
+        where: {
+          isActive: true,
+          categoryId: { in: categoryIds },
+          id: { notIn: ids },
+        },
+        select: { id: true },
+        orderBy: { reviewCount: "desc" },
+        take: PRODUCT_HITS - ids.length,
+      });
+      ids.push(...extra.map((r) => r.id));
+    }
+    return ids;
+  }
+
+  /** Typeahead: the most popular products whose name contains `q`. */
+  async suggestProducts(q: string, take = 5) {
+    const t = q.toLowerCase().replace(/[%_\\]/g, "");
+    if (t.length < 2) return [];
+    return this.viaIndexes<
+      { name: string; slug: string; image: string; price: number }[]
+    >(Prisma.sql`
+      WITH c AS MATERIALIZED (
+        SELECT p."name", p."slug", p."image", p."price", p."reviewCount"
+        FROM "Product" p
+        WHERE p."isActive" AND (${nameMatch(t)} OR p."tags" && ARRAY[${t}]::text[])
+        LIMIT ${CANDIDATE_CAP}
+      )
+      SELECT "name", "slug", "image", "price" FROM c
+      ORDER BY "reviewCount" DESC
+      LIMIT ${take}`);
+  }
+
+  private loadFallbackProducts() {
+    return this.prisma.product.findMany({
+      where: { isActive: true, isFeatured: true },
+      include: { brand: true, category: true },
+      orderBy: { reviewCount: "desc" },
+      take: 12,
+    });
+  }
 
   async smartSearch(
     query: string,
@@ -106,33 +240,13 @@ export class SmartSearchService {
     const hits: SearchHit[] = [];
 
     if (hub === "all" || hub === "store") {
-      const products = searchTokens.length
+      const ids = searchTokens.length
+        ? await this.productCandidates(searchTokens)
+        : [];
+      const products = ids.length
         ? await this.prisma.product.findMany({
-            where: {
-              isActive: true,
-              OR: [
-                ...searchTokens.flatMap((t) => [
-                  { name: { contains: t, mode: "insensitive" as const } },
-                  {
-                    description: { contains: t, mode: "insensitive" as const },
-                  },
-                  { shortDesc: { contains: t, mode: "insensitive" as const } },
-                  { tags: { has: t } },
-                  {
-                    brand: {
-                      name: { contains: t, mode: "insensitive" as const },
-                    },
-                  },
-                  {
-                    category: {
-                      name: { contains: t, mode: "insensitive" as const },
-                    },
-                  },
-                ]),
-              ],
-            },
+            where: { id: { in: ids } },
             include: { brand: true, category: true },
-            take: 60,
           })
         : [];
 
@@ -303,12 +417,9 @@ export class SmartSearchService {
       productHits.length === 0 &&
       (hub === "all" || hub === "store")
     ) {
-      const featured = await this.prisma.product.findMany({
-        where: { isActive: true },
-        include: { brand: true, category: true },
-        orderBy: [{ isFeatured: "desc" }, { reviewCount: "desc" }],
-        take: 12,
-      });
+      const featured = await this.fallbackCache.get("featured", () =>
+        this.loadFallbackProducts(),
+      );
       for (const p of featured) {
         hits.push({
           type: "product",

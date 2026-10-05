@@ -7,12 +7,15 @@ import {
   View,
   type DimensionValue,
 } from 'react-native';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { colors, discountPercent, formatPrice, radii, shadows } from '../theme';
 import { useWishlist } from '../store/wishlist';
 import { AppIcon } from './AppIcon';
 import { SmartImage } from './ui';
 import type { ProductCard as ProductCardType } from '../types';
+
+/** Cards are at most ~half the screen wide; fetch a thumbnail, not the original. */
+const CARD_IMG_DP = 170;
 
 function WishHeart({ id }: { id: string }) {
   const on = useWishlist(s => s.ids.includes(id));
@@ -51,7 +54,7 @@ function ProductCardBase({
     >
       <View style={styles.imgWrap}>
         <SmartImage
-          uri={product.image ? mediaUrl(product.image) : null}
+          uri={product.image ? thumbUrl(product.image, CARD_IMG_DP) : null}
           style={[styles.img, soldOut && { opacity: 0.45 }]}
           resizeMode="contain"
           icon="pill"

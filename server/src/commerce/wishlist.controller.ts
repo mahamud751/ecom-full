@@ -12,7 +12,9 @@ export class WishlistController {
   @ApiOperation({ summary: "Live stock + price for wishlist product ids" })
   async status(@Body() body: { ids?: string[] }) {
     try {
-      const ids: string[] = Array.isArray(body?.ids) ? body.ids : [];
+      const ids: string[] = Array.isArray(body?.ids)
+        ? body.ids.slice(0, 200)
+        : [];
       if (!ids.length) return { products: [] };
 
       const products = await this.prisma.product.findMany({

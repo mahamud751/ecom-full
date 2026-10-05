@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
+import { storage } from '../lib/storage';
 import { AhonaMark } from '../components/Logo';
 import { AppIcon, type IconName } from '../components/AppIcon';
 import { ProductCard } from '../components/ProductCard';
@@ -56,6 +57,18 @@ const BANNER_W = W - 32;
 const RAIL_W = (W - 56) / 2.15;
 const GRID_W = (W - 44) / 2;
 
+/** Last good /home payload — shown instantly on launch, then refreshed. */
+const HOME_CACHE_KEY = 'home_cache_v1';
+
+function readCachedHome(): HomeData | null {
+  try {
+    const raw = storage.getString(HOME_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as HomeData) : null;
+  } catch {
+    return null;
+  }
+}
+
 const CATEGORY_TINTS = ['#e4f1ee', '#fbeee6', '#eef0fb', '#f7efd6', '#fbe9ef', '#e8f4e4'];
 
 function greeting() {
@@ -69,7 +82,9 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const insets = useSafeAreaInsets();
   const user = useAuth(s => s.user);
   const wishCount = useWishlist(s => s.ids.length);
-  const [data, setData] = useState<HomeData | null>(null);
+  const [data, setData] = useState<HomeData | null>(readCachedHome);
+  // Everything below the first screenful mounts after the first frame.
+  const [showRest, setShowRest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [slide, setSlide] = useState(0);
@@ -83,6 +98,7 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
       setError(null);
       const res = await http.get('/home');
       setData(res.data);
+      storage.set(HOME_CACHE_KEY, JSON.stringify(res.data));
     } catch (err) {
       setError(apiErrorMessage(err, 'Failed to load home'));
     } finally {
@@ -93,6 +109,15 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!data || showRest) return;
+    // Two frames: let the hero + banners paint before mounting the rails.
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => setShowRest(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [data, showRest]);
 
   // Hero is dark: light status-bar text while Home is focused, dark elsewhere.
   useFocusEffect(
@@ -176,6 +201,9 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           horizontal
           data={items}
           keyExtractor={p => p.id}
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={3}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 6 }}
           renderItem={({ item }) => (
@@ -310,7 +338,7 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   />
                   {b.image ? (
                     <SmartImage
-                      uri={mediaUrl(b.image)}
+                      uri={thumbUrl(b.image, BANNER_W)}
                       style={StyleSheet.absoluteFill}
                       hideFallback
                     />
@@ -376,7 +404,7 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               >
                 <View style={[styles.catIcon, { backgroundColor: CATEGORY_TINTS[i % CATEGORY_TINTS.length] }]}>
                   <SmartImage
-                    uri={c.image ? mediaUrl(c.image) : null}
+                    uri={c.image ? thumbUrl(c.image, 66) : null}
                     style={styles.catImage}
                     icon="leaf"
                     iconSize={26}
@@ -390,147 +418,155 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </View>
         </View>
 
-        {/* Flash sale */}
-        {data.flashSale.length > 0 ? (
-          <View style={styles.flash}>
-            <Gradient from="#fff4d6" to="#f6f4ee" angle="vertical" />
-            <View style={styles.flashHead}>
-              <View style={styles.flashBolt}>
-                <AppIcon name="bolt" color={colors.forestDeep} size={18} filled />
+        {/* Below the fold — mounted once the top has painted */}
+        {showRest ? (
+          <>
+            {/* Flash sale */}
+            {data.flashSale.length > 0 ? (
+              <View style={styles.flash}>
+                <Gradient from="#fff4d6" to="#f6f4ee" angle="vertical" />
+                <View style={styles.flashHead}>
+                  <View style={styles.flashBolt}>
+                    <AppIcon name="bolt" color={colors.forestDeep} size={18} filled />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.flashTitle}>Flash sale</Text>
+                    <Text style={styles.flashSub}>Deals refresh every day at midnight</Text>
+                  </View>
+                  <Pressable
+                    hitSlop={8}
+                    style={styles.flashAll}
+                    onPress={() =>
+                      navigation.navigate('Products', { section: 'flashSale', title: 'Flash sale' })
+                    }
+                  >
+                    <Text style={styles.flashAllText}>See all</Text>
+                    <AppIcon name="chevronRight" color={colors.white} size={13} strokeWidth={2.6} />
+                  </Pressable>
+                </View>
+                <FlatList
+                  horizontal
+                  data={data.flashSale}
+                  keyExtractor={p => p.id}
+                  initialNumToRender={3}
+                  maxToRenderPerBatch={3}
+                  windowSize={3}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 18 }}
+                  renderItem={({ item }) => (
+                    <ProductCard product={item} width={RAIL_W} onPress={() => goProduct(item.slug)} />
+                  )}
+                />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.flashTitle}>Flash sale</Text>
-                <Text style={styles.flashSub}>Deals refresh every day at midnight</Text>
-              </View>
-              <Pressable
-                hitSlop={8}
-                style={styles.flashAll}
-                onPress={() =>
-                  navigation.navigate('Products', { section: 'flashSale', title: 'Flash sale' })
-                }
-              >
-                <Text style={styles.flashAllText}>See all</Text>
-                <AppIcon name="chevronRight" color={colors.white} size={13} strokeWidth={2.6} />
-              </Pressable>
-            </View>
-            <FlatList
-              horizontal
-              data={data.flashSale}
-              keyExtractor={p => p.id}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 18 }}
-              renderItem={({ item }) => (
-                <ProductCard product={item} width={RAIL_W} onPress={() => goProduct(item.slug)} />
-              )}
-            />
-          </View>
-        ) : null}
+            ) : null}
 
-        {/* Doctors */}
-        {data.doctors.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              title="Talk to a doctor"
-              subtitle="Certified specialists, from home"
-              onSeeAll={() => navigation.navigate('Doctors')}
-              style={{ paddingHorizontal: 16 }}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 6 }}
-            >
-              {data.doctors.map(d => (
-                <Pressable
-                  key={d.id}
-                  style={({ pressed }) => [styles.docCard, pressed && { transform: [{ scale: 0.98 }] }]}
-                  onPress={() => navigation.navigate('DoctorDetail', { slug: d.slug })}
+            {/* Doctors */}
+            {data.doctors.length > 0 ? (
+              <View style={styles.section}>
+                <SectionHeader
+                  title="Talk to a doctor"
+                  subtitle="Certified specialists, from home"
+                  onSeeAll={() => navigation.navigate('Doctors')}
+                  style={{ paddingHorizontal: 16 }}
+                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 6 }}
                 >
-                  <View>
-                    <SmartImage
-                      uri={d.image ? mediaUrl(d.image) : null}
-                      style={styles.docImg}
-                      icon="doctor"
-                    />
-                    {d.availableNow ? (
-                      <View style={styles.docOnline}>
-                        <View style={styles.docOnlineDot} />
-                        <Text style={styles.docOnlineText}>Online</Text>
+                  {data.doctors.map(d => (
+                    <Pressable
+                      key={d.id}
+                      style={({ pressed }) => [styles.docCard, pressed && { transform: [{ scale: 0.98 }] }]}
+                      onPress={() => navigation.navigate('DoctorDetail', { slug: d.slug })}
+                    >
+                      <View>
+                        <SmartImage
+                          uri={d.image ? thumbUrl(d.image, 168) : null}
+                          style={styles.docImg}
+                          icon="doctor"
+                        />
+                        {d.availableNow ? (
+                          <View style={styles.docOnline}>
+                            <View style={styles.docOnlineDot} />
+                            <Text style={styles.docOnlineText}>Online</Text>
+                          </View>
+                        ) : null}
+                        {d.rating ? (
+                          <View style={styles.docRating}>
+                            <AppIcon name="star" color={colors.goldStar} size={11} filled />
+                            <Text style={styles.docRatingText}>{d.rating.toFixed(1)}</Text>
+                          </View>
+                        ) : null}
                       </View>
-                    ) : null}
-                    {d.rating ? (
-                      <View style={styles.docRating}>
-                        <AppIcon name="star" color={colors.goldStar} size={11} filled />
-                        <Text style={styles.docRatingText}>{d.rating.toFixed(1)}</Text>
+                      <View style={{ padding: 12 }}>
+                        <Text numberOfLines={1} style={styles.docName}>
+                          {d.name}
+                        </Text>
+                        <Text numberOfLines={1} style={styles.docSpec}>
+                          {d.specialty}
+                          {d.experience ? ` · ${d.experience} yrs` : ''}
+                        </Text>
+                        <View style={styles.docFoot}>
+                          <Text style={styles.docFee}>{formatPrice(d.fee)}</Text>
+                          <View style={styles.docGo}>
+                            <AppIcon name="video" color={colors.white} size={14} />
+                          </View>
+                        </View>
                       </View>
-                    ) : null}
-                  </View>
-                  <View style={{ padding: 12 }}>
-                    <Text numberOfLines={1} style={styles.docName}>
-                      {d.name}
-                    </Text>
-                    <Text numberOfLines={1} style={styles.docSpec}>
-                      {d.specialty}
-                      {d.experience ? ` · ${d.experience} yrs` : ''}
-                    </Text>
-                    <View style={styles.docFoot}>
-                      <Text style={styles.docFee}>{formatPrice(d.fee)}</Text>
-                      <View style={styles.docGo}>
-                        <AppIcon name="video" color={colors.white} size={14} />
-                      </View>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
 
-        {rail('Beauty picks', data.beautyPicks, {
-          subtitle: 'Skincare & makeup our team loves',
-          category: 'beauty',
-        })}
-        {rail('Himalaya wellness', data.himalaya, { subtitle: 'Herbal care, trusted for decades' })}
-        {rail('Food & nutrition', data.foodPicks, {
-          subtitle: 'Fuel for everyday health',
-          category: 'food-nutrition',
-        })}
+            {rail('Beauty picks', data.beautyPicks, {
+              subtitle: 'Skincare & makeup our team loves',
+              category: 'beauty',
+            })}
+            {rail('Himalaya wellness', data.himalaya, { subtitle: 'Herbal care, trusted for decades' })}
+            {rail('Food & nutrition', data.foodPicks, {
+              subtitle: 'Fuel for everyday health',
+              category: 'food-nutrition',
+            })}
 
-        {/* Featured */}
-        <View style={[styles.section, { paddingHorizontal: 16 }]}>
-          <SectionHeader
-            title="Featured for you"
-            subtitle="Handpicked bestsellers"
-            onSeeAll={() => navigation.navigate('Products', { title: 'All products' })}
-          />
-          <View style={styles.grid}>
-            {data.featured.map(item => (
-              <ProductCard
-                key={item.id}
-                product={item}
-                width={GRID_W}
-                onPress={() => goProduct(item.slug)}
+            {/* Featured */}
+            <View style={[styles.section, { paddingHorizontal: 16 }]}>
+              <SectionHeader
+                title="Featured for you"
+                subtitle="Handpicked bestsellers"
+                onSeeAll={() => navigation.navigate('Products', { title: 'All products' })}
               />
-            ))}
-          </View>
-        </View>
+              <View style={styles.grid}>
+                {data.featured.map(item => (
+                  <ProductCard
+                    key={item.id}
+                    product={item}
+                    width={GRID_W}
+                    onPress={() => goProduct(item.slug)}
+                  />
+                ))}
+              </View>
+            </View>
 
-        {/* Rx CTA */}
-        <Pressable
-          style={styles.rxCta}
-          onPress={() => navigation.navigate('PrescriptionRequest')}
-        >
-          <Gradient from={gradients.gold[0]} to={gradients.gold[1]} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rxTitle}>Consulted a doctor?</Text>
-            <Text style={styles.rxSub}>
-              View your prescription with your consultation number.
-            </Text>
-          </View>
-          <View style={styles.rxBtn}>
-            <AppIcon name="file" color={colors.white} size={20} />
-          </View>
-        </Pressable>
+            {/* Rx CTA */}
+            <Pressable
+              style={styles.rxCta}
+              onPress={() => navigation.navigate('PrescriptionRequest')}
+            >
+              <Gradient from={gradients.gold[0]} to={gradients.gold[1]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rxTitle}>Consulted a doctor?</Text>
+                <Text style={styles.rxSub}>
+                  View your prescription with your consultation number.
+                </Text>
+              </View>
+              <View style={styles.rxBtn}>
+                <AppIcon name="file" color={colors.white} size={20} />
+              </View>
+            </Pressable>
+          </>
+        ) : null}
       </ScrollView>
       {solidTop ? <View style={[styles.scrim, { height: insets.top }]} /> : null}
     </View>

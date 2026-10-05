@@ -11,18 +11,14 @@ import {
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApiError, makeRefNumber } from "../common/utils";
+import { pageParams } from "../common/pagination";
 import { AuthUser, JwtAuthGuard, OptionalAuth } from "../auth/jwt-auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { makeChannelName } from "./agora";
 import type { ScheduleRow } from "../doctors/schedule";
 
 type ConsultStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "IN_CALL"
-  | "COMPLETED"
-  | "CANCELLED"
-  | "NO_SHOW";
+  "PENDING" | "CONFIRMED" | "IN_CALL" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 
 @ApiTags("consultations")
 @Controller("consultations")
@@ -36,7 +32,10 @@ export class ConsultationsController {
     @Query("doctorId") doctorId?: string,
     @Query("status") status?: string,
     @Query("emergency") emergency?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
   ) {
+    const p = pageParams({ page, perPage }, { perPage: 50, maxPerPage: 100 });
     try {
       if (!phone?.trim() && !doctorId?.trim()) {
         throw new ApiError(400, "phone or doctorId is required");
@@ -79,11 +78,16 @@ export class ConsultationsController {
             include: { items: { orderBy: { sortOrder: "asc" } } },
           },
         },
-        orderBy: { createdAt: "desc" },
-        take: 50,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: p.skip,
+        take: p.take + 1,
       });
 
-      return { consultations };
+      return {
+        consultations: consultations.slice(0, p.take),
+        page: p.page,
+        hasMore: consultations.length > p.take,
+      };
     } catch (err) {
       if (err instanceof ApiError) throw err;
       console.error("Consultations list error:", err);

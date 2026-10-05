@@ -32,6 +32,8 @@ import {
   MyConsultationsScreen,
 } from '../screens/ConsultScreens';
 import { CallRoomScreen } from '../screens/CallRoomScreen';
+import { IncomingCallScreen } from '../screens/IncomingCallScreen';
+import { flushPendingNavigation, navigationRef } from '../lib/navigation';
 import { LabBookScreen, LabScreen } from '../screens/LabScreens';
 import {
   PrescriptionRequestScreen,
@@ -162,7 +164,11 @@ const styles = StyleSheet.create({
 
 export function RootNavigator() {
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navTheme}
+      onReady={flushPendingNavigation}
+    >
       <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen
           name="Tabs"
@@ -255,6 +261,15 @@ export function RootNavigator() {
           name="CallRoom"
           component={CallRoomScreen}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="IncomingCall"
+          component={IncomingCallScreen}
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            gestureEnabled: false,
+          }}
         />
         <Stack.Screen
           name="Lab"

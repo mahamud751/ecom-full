@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/notifies")
@@ -13,9 +14,15 @@ export class AdminNotifiesController {
 
   @Get()
   @ApiOperation({ summary: "List product alerts with counts" })
-  async list(@Query("status") status?: string) {
+  async list(
+    @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    const p = pageParams({ page, perPage }, { perPage: 200 });
+    const where = status ? { status: status as never } : undefined;
     const notifies = await this.prisma.productNotify.findMany({
-      where: status ? { status: status as never } : undefined,
+      where,
       include: {
         product: {
           select: {
@@ -28,23 +35,23 @@ export class AdminNotifiesController {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-      take: 200,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: p.skip,
+      take: p.take,
     });
 
-    const counts = {
-      active: await this.prisma.productNotify.count({
-        where: { status: "ACTIVE" },
-      }),
-      ready: await this.prisma.productNotify.count({
-        where: { status: "READY" },
-      }),
-      sent: await this.prisma.productNotify.count({
-        where: { status: "SENT" },
-      }),
-    };
+    const [total, active, ready, sent] = await Promise.all([
+      this.prisma.productNotify.count({ where }),
+      this.prisma.productNotify.count({ where: { status: "ACTIVE" } }),
+      this.prisma.productNotify.count({ where: { status: "READY" } }),
+      this.prisma.productNotify.count({ where: { status: "SENT" } }),
+    ]);
 
-    return { notifies, counts };
+    return {
+      notifies,
+      counts: { active, ready, sent },
+      pagination: pagination(p, total),
+    };
   }
 
   @Patch()

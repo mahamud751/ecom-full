@@ -11,6 +11,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError, slugify } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/lab")
@@ -21,7 +22,11 @@ export class AdminLabController {
 
   @Get()
   @ApiOperation({ summary: "Lab tests / packages / bookings" })
-  async list(@Query("kind") kindRaw?: string) {
+  async list(
+    @Query("kind") kindRaw?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
     const kind = kindRaw || "all";
 
     if (kind === "tests") {
@@ -40,12 +45,17 @@ export class AdminLabController {
       return { packages };
     }
     if (kind === "bookings") {
-      const bookings = await this.prisma.labBooking.findMany({
-        include: { labTest: true, labPackage: true },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      });
-      return { bookings };
+      const p = pageParams({ page, perPage }, { perPage: 100 });
+      const [bookings, total] = await Promise.all([
+        this.prisma.labBooking.findMany({
+          include: { labTest: true, labPackage: true },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          skip: p.skip,
+          take: p.take,
+        }),
+        this.prisma.labBooking.count(),
+      ]);
+      return { bookings, pagination: pagination(p, total) };
     }
 
     const [tests, packages, bookings] = await Promise.all([

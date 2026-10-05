@@ -33,6 +33,8 @@ type VisualIndex = {
 
 const INDEX_PATH = path.join(process.cwd(), ".cache", "visual-index.json");
 const INDEX_VERSION = 2;
+const SIGNATURE_TTL_MS = 60_000;
+const BUILD_BATCH = 5_000;
 
 function hamming(a: string, b: string): number {
   const len = Math.min(a.length, b.length);
@@ -154,13 +156,35 @@ export class VisualMatchService {
     }
   }
 
-  private signatureOf(
-    products: { id: string; image: string; images: string[] }[],
-  ): string {
-    return products
-      .map((p) => `${p.id}:${p.image}:${(p.images || []).join(",")}`)
-      .sort()
-      .join("|");
+  /**
+   * Cheap change detector for the catalog's images: active product count +
+   * newest updatedAt (any image edit or (de)activation bumps updatedAt).
+   * Checked at most once per SIGNATURE_TTL_MS.
+   */
+  private signatureAt = 0;
+  private signatureValue: Promise<string> | null = null;
+  private catalogSignature(): Promise<string> {
+    if (
+      this.signatureValue &&
+      Date.now() - this.signatureAt < SIGNATURE_TTL_MS
+    ) {
+      return this.signatureValue;
+    }
+    this.signatureAt = Date.now();
+    this.signatureValue = this.prisma.product
+      .aggregate({
+        where: { isActive: true },
+        _count: { _all: true },
+        _max: { updatedAt: true },
+      })
+      .then(
+        (agg) =>
+          `${agg._count._all}:${agg._max.updatedAt?.toISOString() ?? "-"}`,
+      );
+    this.signatureValue.catch(() => {
+      this.signatureValue = null;
+    });
+    return this.signatureValue;
   }
 
   private async readIndexFile(): Promise<VisualIndex | null> {
@@ -181,38 +205,71 @@ export class VisualMatchService {
     await fs.writeFile(INDEX_PATH, JSON.stringify(index));
   }
 
+  private rebuilding: Promise<VisualIndex> | null = null;
+
+  /**
+   * The current index. A stale index is served while a rebuild runs in the
+   * background, so an image search never waits on re-fingerprinting the
+   * catalog; only the very first build (no index in memory or on disk) is
+   * awaited.
+   */
   private async getVisualIndex(): Promise<VisualIndex> {
-    const products = await this.prisma.product.findMany({
-      where: { isActive: true },
-      select: { id: true, slug: true, name: true, image: true, images: true },
-    });
-    const signature = this.signatureOf(products);
+    const signature = await this.catalogSignature();
+    if (!this.memoryIndex) this.memoryIndex = await this.readIndexFile();
+    const current = this.memoryIndex;
+    if (current && current.signature === signature) return current;
 
-    if (this.memoryIndex && this.memoryIndex.signature === signature)
-      return this.memoryIndex;
-
-    const disk = await this.readIndexFile();
-    if (disk && disk.signature === signature) {
-      this.memoryIndex = disk;
-      return disk;
+    if (!this.rebuilding) {
+      this.rebuilding = this.buildIndex(signature, current).finally(() => {
+        this.rebuilding = null;
+      });
+      this.rebuilding.catch((e) => console.error("Visual index build:", e));
     }
+    return current ?? this.rebuilding;
+  }
 
+  /**
+   * Fingerprints every active product image, reusing records from `previous`
+   * for (product, image) pairs that haven't changed — so after the first
+   * build only new or edited images are downloaded and hashed.
+   */
+  private async buildIndex(
+    signature: string,
+    previous: VisualIndex | null,
+  ): Promise<VisualIndex> {
+    const reusable = new Map(
+      (previous?.records ?? []).map((r) => [`${r.productId}::${r.image}`, r]),
+    );
     const records: VisualRecord[] = [];
-    const seen = new Set<string>();
-
     const jobs: {
       productId: string;
       slug: string;
       name: string;
       image: string;
     }[] = [];
-    for (const p of products) {
-      const urls = [p.image, ...(p.images || [])].filter(Boolean);
-      for (const image of urls) {
-        const key = `${p.id}::${image}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        jobs.push({ productId: p.id, slug: p.slug, name: p.name, image });
+
+    // Walk the catalog in id order, a batch at a time, instead of loading
+    // every product row at once.
+    let cursor: string | undefined;
+    for (;;) {
+      const batch = await this.prisma.product.findMany({
+        where: { isActive: true },
+        select: { id: true, slug: true, name: true, image: true, images: true },
+        orderBy: { id: "asc" },
+        take: BUILD_BATCH,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      });
+      if (!batch.length) break;
+      cursor = batch[batch.length - 1].id;
+
+      for (const p of batch) {
+        const urls = new Set([p.image, ...(p.images || [])].filter(Boolean));
+        for (const image of urls) {
+          const old = reusable.get(`${p.id}::${image}`);
+          if (old) records.push({ ...old, slug: p.slug, name: p.name });
+          else
+            jobs.push({ productId: p.id, slug: p.slug, name: p.name, image });
+        }
       }
     }
 

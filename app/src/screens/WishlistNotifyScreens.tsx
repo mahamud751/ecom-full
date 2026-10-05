@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import {
   Badge,
   Button,
@@ -171,7 +171,7 @@ export function NotificationsScreen({ navigation }: NotifyProps) {
             onPress={() => navigation.navigate('ProductDetail', { slug: r.product.slug })}
           >
             <SmartImage
-              uri={r.product.image ? mediaUrl(r.product.image) : null}
+              uri={r.product.image ? thumbUrl(r.product.image, 64) : null}
               style={styles.img}
               resizeMode="contain"
               icon="pill"

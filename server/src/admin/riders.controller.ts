@@ -12,6 +12,11 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import {
+  riderDeliveryStats,
+  riderRecentOrders,
+  riderStatusCounts,
+} from "./payout-stats";
 
 @ApiTags("admin")
 @Controller("admin/riders")
@@ -37,65 +42,55 @@ export class AdminRidersController {
       });
       if (!rider) throw new ApiError(404, "Rider not found");
 
-      const delivered = rider.orders.filter((o) => o.status === "DELIVERED");
-      const active = rider.orders.filter((o) =>
-        ["PROCESSING", "SHIPPED", "CONFIRMED"].includes(o.status),
-      );
-      let deliveryFees = 0;
-      let riderEarned = 0;
-      let gmv = 0;
-      for (const o of delivered) {
-        deliveryFees += o.deliveryFee || 0;
-        riderEarned += Math.min(rider.perDelivery, o.deliveryFee || 0);
-        gmv += o.total;
-      }
+      // Stats cover the rider's whole history; `rider.orders` is only the
+      // latest 100 for the table.
+      const [[money], counts] = await Promise.all([
+        riderDeliveryStats(this.prisma, [rider.id]),
+        riderStatusCounts(this.prisma, [rider.id]),
+      ]);
+      const byStatus = counts.get(rider.id) ?? {};
+      const deliveryFees = money?.deliveryFees ?? 0;
+      const riderEarned = money?.riderEarned ?? 0;
 
       return {
         rider,
         stats: {
           totalOrders: rider._count.orders,
-          delivered: delivered.length,
-          active: active.length,
-          cancelled: rider.orders.filter((o) => o.status === "CANCELLED")
-            .length,
+          delivered: byStatus.DELIVERED ?? 0,
+          active:
+            (byStatus.PROCESSING ?? 0) +
+            (byStatus.SHIPPED ?? 0) +
+            (byStatus.CONFIRMED ?? 0),
+          cancelled: byStatus.CANCELLED ?? 0,
           deliveryFees,
           riderEarned,
           platformKept: Math.max(0, deliveryFees - riderEarned),
-          gmv,
+          gmv: money?.gmv ?? 0,
         },
       };
     }
 
     const riders = await this.prisma.rider.findMany({
-      include: {
-        orders: {
-          where: { status: { in: ["PROCESSING", "SHIPPED", "DELIVERED"] } },
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            total: true,
-            deliveryFee: true,
-          },
-        },
-        _count: { select: { orders: true } },
-      },
+      include: { _count: { select: { orders: true } } },
       orderBy: { name: "asc" },
     });
 
+    const ids = riders.map((r) => r.id);
+    const [money, counts, recent] = await Promise.all([
+      riderDeliveryStats(this.prisma, ids),
+      riderStatusCounts(this.prisma, ids),
+      riderRecentOrders(this.prisma, ids, 3),
+    ]);
+    const moneyById = new Map(money.map((m) => [m.riderId, m]));
+
     const enriched = riders.map((r) => {
-      const delivered = r.orders.filter((o) => o.status === "DELIVERED");
-      const earned = delivered.reduce(
-        (s, o) => s + Math.min(r.perDelivery, o.deliveryFee || 0),
-        0,
-      );
+      const byStatus = counts.get(r.id) ?? {};
       return {
         ...r,
-        deliveredCount: delivered.length,
-        activeCount: r.orders.filter((o) =>
-          ["PROCESSING", "SHIPPED"].includes(o.status),
-        ).length,
-        earnings: earned,
+        orders: recent.get(r.id) ?? [],
+        deliveredCount: byStatus.DELIVERED ?? 0,
+        activeCount: (byStatus.PROCESSING ?? 0) + (byStatus.SHIPPED ?? 0),
+        earnings: moneyById.get(r.id)?.riderEarned ?? 0,
       };
     });
 

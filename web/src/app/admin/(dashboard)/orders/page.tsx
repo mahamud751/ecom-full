@@ -10,6 +10,9 @@ import {
   Select,
   Badge,
   Empty,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { formatPrice } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -47,19 +50,24 @@ export default function AdminOrdersPage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [page, setPage] = useListPage(`${status}|${q}`);
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (q) params.set("q", q);
+    params.set("page", String(page));
     const [o, r] = await Promise.all([
       adminFetch(`/admin/orders?${params}`).then((x) => x.json()),
       adminFetch("/admin/riders").then((x) => x.json()),
     ]);
     setOrders(o.orders || []);
+    setPageInfo(o.pagination ?? null);
     setRiders(r.riders || []);
     setLoading(false);
-  }, [status, q]);
+  }, [status, q, page]);
 
   useEffect(() => {
     void load();
@@ -209,6 +217,11 @@ export default function AdminOrdersPage() {
           ))}
         </div>
       )}
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

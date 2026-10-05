@@ -32,26 +32,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   try {
-    const { categories, products, doctors, labTests, labPackages } = await apiServer<{
+    // Product URLs live in the split /products/sitemap/[id].xml files.
+    const { categories, doctors, labTests, labPackages } = await apiServer<{
       categories: { slug: string; updatedAt: string }[];
-      products: { slug: string; updatedAt: string }[];
       doctors: { slug: string; updatedAt: string }[];
       labTests?: { slug: string; updatedAt: string }[];
       labPackages?: { slug: string; updatedAt: string }[];
-    }>("/sitemap");
+    }>("/sitemap?products=0");
 
     const categoryRoutes: MetadataRoute.Sitemap = categories.map((c) => ({
       url: `${base}/category/${c.slug}`,
       lastModified: c.updatedAt ? new Date(c.updatedAt) : now,
       changeFrequency: "weekly",
       priority: 0.8,
-    }));
-
-    const productRoutes: MetadataRoute.Sitemap = products.map((p) => ({
-      url: `${base}/products/${p.slug}`,
-      lastModified: p.updatedAt ? new Date(p.updatedAt) : now,
-      changeFrequency: "weekly",
-      priority: 0.75,
     }));
 
     const doctorRoutes: MetadataRoute.Sitemap = doctors.map((d) => ({
@@ -79,7 +72,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
       ...staticRoutes,
       ...categoryRoutes,
-      ...productRoutes,
       ...doctorRoutes,
       ...labRoutes,
     ];

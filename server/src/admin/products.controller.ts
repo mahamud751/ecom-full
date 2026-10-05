@@ -10,9 +10,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError, slugify } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/products")
@@ -27,33 +29,41 @@ export class AdminProductsController {
     @Query("q") q?: string,
     @Query("categoryId") categoryId?: string,
     @Query("lowStock") lowStockFlag?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
   ) {
     const lowStock = lowStockFlag === "1";
+    const p = pageParams({ page, perPage }, { perPage: 200 });
+    const where: Prisma.ProductWhereInput = {
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { sku: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(lowStock ? { stock: { lte: 10 } } : {}),
+    };
 
-    const products = await this.prisma.product.findMany({
-      where: {
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" } },
-                { sku: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-        ...(categoryId ? { categoryId } : {}),
-        ...(lowStock ? { stock: { lte: 10 } } : {}),
-      },
-      include: {
-        category: true,
-        brand: true,
-        vendor: true,
-        variants: { orderBy: { createdAt: "asc" } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 200,
-    });
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        include: {
+          category: true,
+          brand: true,
+          vendor: true,
+          variants: { orderBy: { createdAt: "asc" } },
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        skip: p.skip,
+        take: p.take,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
 
-    return { products };
+    return { products, pagination: pagination(p, total) };
   }
 
   @Post()

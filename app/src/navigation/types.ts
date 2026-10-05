@@ -35,6 +35,14 @@ export type RootParamList = {
     channel: string;
     mode: 'VIDEO' | 'AUDIO';
   };
+  IncomingCall: {
+    consultId: string;
+    doctorName: string;
+    doctorImage: string;
+    channel: string;
+    mode: 'VIDEO' | 'AUDIO';
+    expiresAt: number;
+  };
   Lab: undefined;
   LabBook: { testId?: string; packageId?: string; name: string };
   PrescriptionRequest: undefined;

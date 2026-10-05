@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { join } from "path";
 import { AppModule } from "./app.module";
+import { thumbnailMiddleware } from "./media/thumbnails";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -28,7 +29,9 @@ async function bootstrap() {
 
   // Uploaded media stays at /uploads/... (outside the /api prefix) so
   // existing DB URLs keep working. Uploads are content-addressed by name and
-  // never rewritten in place, so let clients cache them hard.
+  // never rewritten in place, so let clients cache them hard. `?w=` asks for
+  // a resized WebP thumbnail (see media/thumbnails.ts).
+  app.use("/uploads", thumbnailMiddleware(join(process.cwd(), "uploads")));
   app.useStaticAssets(join(process.cwd(), "uploads"), {
     prefix: "/uploads",
     maxAge: "30d",

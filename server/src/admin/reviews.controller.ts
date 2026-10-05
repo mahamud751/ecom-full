@@ -8,9 +8,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/reviews")
@@ -43,20 +45,27 @@ export class AdminReviewsController {
 
   @Get()
   @ApiOperation({ summary: "List reviews with moderation counts" })
-  async list(@Query("status") status?: string, @Query("q") q?: string) {
+  async list(
+    @Query("status") status?: string,
+    @Query("q") q?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    const p = pageParams({ page, perPage }, { perPage: 200 });
+    const where: Prisma.ProductReviewWhereInput = {
+      ...(status ? { status: status as never } : {}),
+      ...(q
+        ? {
+            OR: [
+              { authorName: { contains: q, mode: "insensitive" } },
+              { body: { contains: q, mode: "insensitive" } },
+              { product: { name: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    };
     const reviews = await this.prisma.productReview.findMany({
-      where: {
-        ...(status ? { status: status as never } : {}),
-        ...(q
-          ? {
-              OR: [
-                { authorName: { contains: q, mode: "insensitive" } },
-                { body: { contains: q, mode: "insensitive" } },
-                { product: { name: { contains: q, mode: "insensitive" } } },
-              ],
-            }
-          : {}),
-      },
+      where,
       include: {
         product: {
           select: {
@@ -69,11 +78,13 @@ export class AdminReviewsController {
           },
         },
       },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      take: 200,
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }],
+      skip: p.skip,
+      take: p.take,
     });
 
-    const [pending, approved, rejected] = await Promise.all([
+    const [matching, pending, approved, rejected] = await Promise.all([
+      this.prisma.productReview.count({ where }),
       this.prisma.productReview.count({ where: { status: "PENDING" } }),
       this.prisma.productReview.count({ where: { status: "APPROVED" } }),
       this.prisma.productReview.count({ where: { status: "REJECTED" } }),
@@ -87,6 +98,7 @@ export class AdminReviewsController {
         rejected,
         total: pending + approved + rejected,
       },
+      pagination: pagination(p, matching),
     };
   }
 

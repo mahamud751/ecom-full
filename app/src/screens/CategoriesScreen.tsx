@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { type IconName } from '../components/AppIcon';
 import { ErrorView, IconTile, Loading, SmartImage } from '../components/ui';
 import { colors, radii, shadows } from '../theme';
@@ -75,7 +75,7 @@ export function CategoriesScreen({ navigation }: Props) {
           >
             <View style={[styles.catIconWrap, { backgroundColor: TINTS[i % TINTS.length] }]}>
               <SmartImage
-                uri={c.image ? mediaUrl(c.image) : null}
+                uri={c.image ? thumbUrl(c.image, 68) : null}
                 style={styles.catImage}
                 icon="leaf"
                 iconSize={26}

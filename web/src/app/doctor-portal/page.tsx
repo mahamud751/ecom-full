@@ -15,6 +15,7 @@ import {
   Siren,
   Lock,
   Mail,
+  PhoneCall,
 } from "lucide-react";
 import { AgoraCallRoom } from "@/components/consult/AgoraCallRoom";
 import { PrescriptionForm } from "@/components/consult/PrescriptionForm";
@@ -54,7 +55,25 @@ type ConsultRow = {
   scheduledAt: string | null;
   createdAt: string;
   prescription: { id: string } | null;
+  /** Doctor → patient ringing: RINGING | ACCEPTED | DECLINED | MISSED | CANCELLED */
+  callState?: string | null;
+  callStateAt?: string | null;
 };
+
+/** A RINGING state older than this is stale (the phone has stopped). */
+const RING_STALE_MS = 35_000;
+
+function ringState(c: ConsultRow): string | null {
+  if (!c.callState) return null;
+  if (
+    c.callState === "RINGING" &&
+    c.callStateAt &&
+    Date.now() - new Date(c.callStateAt).getTime() > RING_STALE_MS
+  ) {
+    return "MISSED";
+  }
+  return c.callState;
+}
 
 export default function DoctorPortalPage() {
   const [doctor, setDoctor] = useState<DoctorSession | null>(null);
@@ -172,6 +191,64 @@ export default function DoctorPortalPage() {
     );
     return () => clearInterval(t);
   }, [doctor?.id, loadQueue]);
+
+  // Doctor → patient ringing. When the patient accepts on their phone, join
+  // the call automatically (the queue poll picks up callState).
+  const ringingIdRef = useRef<string | null>(null);
+  const [ringingId, setRingingId] = useState<string | null>(null);
+
+  async function joinCall(c: ConsultRow) {
+    await doctorFetch(`/consultations/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "join" }),
+    });
+    setActive(c);
+    setIncoming(null);
+    setInCall(true);
+  }
+
+  async function ringPatient(c: ConsultRow) {
+    const res = await doctorFetch(`/consultations/${c.id}/call/ring`, {
+      method: "POST",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      alert(
+        data.error ||
+          data.message ||
+          "Could not ring the patient. Ask them to open the Ahona app.",
+      );
+      return;
+    }
+    ringingIdRef.current = c.id;
+    setRingingId(c.id);
+    if (doctor) void loadQueue(doctor.id, { silent: true });
+  }
+
+  async function cancelRing(c: ConsultRow) {
+    await doctorFetch(`/consultations/${c.id}/call/cancel`, {
+      method: "POST",
+    });
+    ringingIdRef.current = null;
+    setRingingId(null);
+    if (doctor) void loadQueue(doctor.id, { silent: true });
+  }
+
+  useEffect(() => {
+    const id = ringingIdRef.current;
+    if (!id) return;
+    const row = queue.find((c) => c.id === id);
+    const state = row ? ringState(row) : null;
+    if (row && state === "ACCEPTED" && !inCallRef.current) {
+      ringingIdRef.current = null;
+      setRingingId(null);
+      void joinCall(row);
+    } else if (!row || (state && state !== "RINGING")) {
+      ringingIdRef.current = null;
+      setRingingId(null);
+    }
+  }, [queue]);
 
   async function acceptIncoming() {
     if (!incoming || !doctor) return;
@@ -505,16 +582,10 @@ export default function DoctorPortalPage() {
           title="🚨 Emergency queue"
           empty="No emergency patients waiting"
           rows={emergencyQueue}
-          onJoin={async (c) => {
-            await doctorFetch(`/consultations/${c.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "join" }),
-            });
-            setActive(c);
-            setIncoming(null);
-            setInCall(true);
-          }}
+          onJoin={joinCall}
+          onRing={ringPatient}
+          onCancelRing={cancelRing}
+          ringingId={ringingId}
           onRx={(c) => {
             setActive(c);
             setShowRx(true);
@@ -524,16 +595,10 @@ export default function DoctorPortalPage() {
           title="📅 Scheduled consults"
           empty="No scheduled consults right now"
           rows={scheduledQueue}
-          onJoin={async (c) => {
-            await doctorFetch(`/consultations/${c.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "join" }),
-            });
-            setActive(c);
-            setIncoming(null);
-            setInCall(true);
-          }}
+          onJoin={joinCall}
+          onRing={ringPatient}
+          onCancelRing={cancelRing}
+          ringingId={ringingId}
           onRx={(c) => {
             setActive(c);
             setShowRx(true);
@@ -550,12 +615,18 @@ function QueuePanel({
   rows,
   onJoin,
   onRx,
+  onRing,
+  onCancelRing,
+  ringingId,
 }: {
   title: string;
   empty: string;
   rows: ConsultRow[];
   onJoin: (c: ConsultRow) => void | Promise<void>;
   onRx: (c: ConsultRow) => void;
+  onRing: (c: ConsultRow) => void | Promise<void>;
+  onCancelRing: (c: ConsultRow) => void | Promise<void>;
+  ringingId: string | null;
 }) {
   return (
     <section className="rounded-2xl border border-[var(--line)] bg-white p-4 shadow-sm">
@@ -607,7 +678,26 @@ function QueuePanel({
                   </p>
                 </div>
               </div>
+              <RingStatus state={ringState(c)} />
               <div className="mt-3 flex gap-2">
+                {ringingId === c.id || ringState(c) === "RINGING" ? (
+                  <button
+                    type="button"
+                    onClick={() => onCancelRing(c)}
+                    className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600"
+                  >
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cancel
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onRing(c)}
+                    title="Ring the patient's phone, even if the app is closed"
+                    className="flex items-center gap-1 rounded-lg border border-[var(--forest)] px-3 py-2 text-xs font-bold text-[var(--forest)]"
+                  >
+                    <PhoneCall className="h-3.5 w-3.5" /> Ring patient
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => onJoin(c)}
@@ -628,5 +718,28 @@ function QueuePanel({
         </ul>
       )}
     </section>
+  );
+}
+
+const RING_LABELS: Record<string, { text: string; className: string }> = {
+  RINGING: { text: "Ringing patient’s phone…", className: "bg-amber-50 text-amber-800" },
+  ACCEPTED: { text: "Patient answered", className: "bg-emerald-50 text-emerald-700" },
+  DECLINED: { text: "Patient declined the call", className: "bg-red-50 text-red-700" },
+  MISSED: { text: "No answer — missed call", className: "bg-gray-100 text-gray-700" },
+  CANCELLED: { text: "Ringing cancelled", className: "bg-gray-100 text-gray-600" },
+};
+
+function RingStatus({ state }: { state: string | null }) {
+  const label = state ? RING_LABELS[state] : null;
+  if (!label) return null;
+  return (
+    <p
+      className={cn(
+        "mt-2 rounded-lg px-2 py-1 text-[11px] font-bold",
+        label.className,
+      )}
+    >
+      {label.text}
+    </p>
   );
 }

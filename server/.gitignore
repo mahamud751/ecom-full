@@ -5,3 +5,6 @@ uploads/*
 !uploads/.gitkeep
 data/medicines/*.csv
 uploads/packs/
+
+# Firebase Admin key — secret, never commit (use an env var in production)
+firebase-service-account.json

@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CustomerAuthService } from "./customer-auth.service";
 import { CurrentUser } from "./current-user.decorator";
@@ -53,8 +62,12 @@ export class CustomerAuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Orders for the signed-in customer" })
-  orders(@CurrentUser() user: AuthUser) {
-    return this.auth.myOrders(user.sub);
+  orders(
+    @CurrentUser() user: AuthUser,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    return this.auth.myOrders(user.sub, { page, perPage });
   }
 
   @Patch("profile")

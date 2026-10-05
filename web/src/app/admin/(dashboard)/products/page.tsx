@@ -13,6 +13,9 @@ import {
   Modal,
   Badge,
   Empty,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { ImageUpload, MultiImageUpload } from "@/components/admin/ImageUpload";
 import { formatPrice } from "@/lib/utils";
@@ -88,22 +91,26 @@ export default function AdminProductsPage() {
     isDefault: false,
   });
 
+  const [page, setPage] = useListPage(q);
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const [pRes, cRes] = await Promise.all([
-      adminFetch(`/admin/products?q=${encodeURIComponent(q)}`),
+      adminFetch(`/admin/products?q=${encodeURIComponent(q)}&page=${page}`),
       adminFetch("/admin/catalog"),
     ]);
     const pData = await pRes.json();
     const cData = await cRes.json();
     setProducts(pData.products || []);
+    setPageInfo(pData.pagination ?? null);
     setCatalog({
       categories: cData.categories || [],
       brands: cData.brands || [],
       vendors: cData.vendors || [],
     });
     setLoading(false);
-  }, [q]);
+  }, [q, page]);
 
   useEffect(() => {
     void load();
@@ -322,6 +329,11 @@ export default function AdminProductsPage() {
         </AdminCard>
       )}
 
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
       <Modal
         open={modal}
         onClose={() => setModal(false)}

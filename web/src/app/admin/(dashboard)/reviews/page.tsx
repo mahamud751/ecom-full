@@ -12,6 +12,9 @@ import {
   Select,
   Empty,
   StatCard,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { Loader2, Star, Check, X, Trash2 } from "lucide-react";
 
@@ -48,16 +51,21 @@ export default function AdminReviewsPage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [page, setPage] = useListPage(`${status}|${q}`);
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (q.trim()) params.set("q", q.trim());
+    params.set("page", String(page));
     const d = await adminFetch(`/admin/reviews?${params}`).then((r) => r.json());
     setReviews(d.reviews || []);
+    setPageInfo(d.pagination ?? null);
     setCounts(d.counts || { pending: 0, approved: 0, rejected: 0, total: 0 });
     setLoading(false);
-  }, [status, q]);
+  }, [status, q, page]);
 
   useEffect(() => {
     void load();
@@ -227,6 +235,11 @@ export default function AdminReviewsPage() {
           ))}
         </div>
       )}
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

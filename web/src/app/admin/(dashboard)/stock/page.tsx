@@ -9,6 +9,9 @@ import {
   Input,
   Select,
   Badge,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { Loader2 } from "lucide-react";
 
@@ -36,23 +39,48 @@ export default function AdminStockPage() {
     note: "",
   });
 
+  const [page, setPage] = useListPage("");
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, p] = await Promise.all([
-      adminFetch("/admin/stock").then((r) => r.json()),
-      adminFetch("/admin/products").then((r) => r.json()),
-    ]);
+    const s = await adminFetch(`/admin/stock?page=${page}`).then((r) =>
+      r.json(),
+    );
     setLowStock(s.lowStock || []);
     setMovements(s.movements || []);
-    setProducts(
-      (p.products || []).map((x: { id: string; name: string; stock: number }) => ({
-        id: x.id,
-        name: x.name,
-        stock: x.stock,
-      }))
-    );
+    setPageInfo(s.pagination ?? null);
     setLoading(false);
-  }, []);
+  }, [page]);
+
+  // Product picker: search by name/SKU on the server (the catalog is too big
+  // to list), debounced while typing.
+  const [productQ, setProductQ] = useState("");
+  const [productsVersion, setProductsVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const params = new URLSearchParams({ perPage: "50" });
+      if (productQ.trim()) params.set("q", productQ.trim());
+      const p = await adminFetch(`/admin/products?${params}`).then((r) =>
+        r.json(),
+      );
+      if (cancelled) return;
+      setProducts(
+        (p.products || []).map(
+          (x: { id: string; name: string; stock: number }) => ({
+            id: x.id,
+            name: x.name,
+            stock: x.stock,
+          }),
+        ),
+      );
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [productQ, productsVersion]);
 
   useEffect(() => {
     void load();
@@ -72,6 +100,7 @@ export default function AdminStockPage() {
     if (res.ok) {
       setForm({ productId: form.productId, type: "IN", quantity: "", note: "" });
       void load();
+      setProductsVersion((v) => v + 1);
     } else {
       const d = await res.json();
       alert(d.error || "Failed");
@@ -96,6 +125,12 @@ export default function AdminStockPage() {
         <AdminCard className="lg:col-span-1">
           <h2 className="mb-3 font-bold">Stock movement</h2>
           <div className="space-y-3">
+            <Input
+              label="Find product"
+              placeholder="Name or SKU"
+              value={productQ}
+              onChange={(e) => setProductQ(e.target.value)}
+            />
             <Select
               label="Product"
               value={form.productId}
@@ -210,6 +245,11 @@ export default function AdminStockPage() {
           </table>
         </div>
       </AdminCard>
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

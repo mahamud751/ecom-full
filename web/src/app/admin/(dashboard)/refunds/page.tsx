@@ -9,6 +9,9 @@ import {
   Badge,
   Select,
   Empty,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { formatPrice } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -35,13 +38,18 @@ export default function AdminRefundsPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [page, setPage] = useListPage(status);
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const q = status ? `?status=${status}` : "";
-    const d = await adminFetch(`/admin/refunds${q}`).then((r) => r.json());
+    const params = new URLSearchParams({ page: String(page) });
+    if (status) params.set("status", status);
+    const d = await adminFetch(`/admin/refunds?${params}`).then((r) => r.json());
     setRefunds(d.refunds || []);
+    setPageInfo(d.pagination ?? null);
     setLoading(false);
-  }, [status]);
+  }, [status, page]);
 
   useEffect(() => {
     void load();
@@ -132,6 +140,11 @@ export default function AdminRefundsPage() {
           ))}
         </div>
       )}
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/support")
@@ -13,16 +14,26 @@ export class AdminSupportController {
 
   @Get()
   @ApiOperation({ summary: "List support tickets" })
-  async list(@Query("status") status?: string) {
-    const tickets = await this.prisma.supportTicket.findMany({
-      where: status ? { status: status as never } : undefined,
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    const open = await this.prisma.supportTicket.count({
-      where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
-    });
-    return { tickets, open };
+  async list(
+    @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    const p = pageParams({ page, perPage }, { perPage: 100 });
+    const where = status ? { status: status as never } : undefined;
+    const [tickets, total, open] = await Promise.all([
+      this.prisma.supportTicket.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: p.skip,
+        take: p.take,
+      }),
+      this.prisma.supportTicket.count({ where }),
+      this.prisma.supportTicket.count({
+        where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+      }),
+    ]);
+    return { tickets, open, pagination: pagination(p, total) };
   }
 
   @Patch()

@@ -12,6 +12,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError, slugify } from "../common/utils";
+import { doctorCompletedStats } from "./payout-stats";
 
 type ScheduleInput = {
   dayOfWeek: number;
@@ -48,28 +49,29 @@ export class AdminDoctorsController {
       });
       if (!doctor) throw new ApiError(404, "Doctor not found");
 
-      const completed = doctor.consultations.filter(
-        (c) => c.status === "COMPLETED",
-      );
+      // Earnings cover the doctor's whole history; `doctor.consultations` is
+      // only the latest 50 for the table.
+      const [completedStats, statusGroups] = await Promise.all([
+        doctorCompletedStats(this.prisma, [doctor.id]),
+        this.prisma.consultation.groupBy({
+          by: ["status"],
+          where: { doctorId: doctor.id },
+          _count: { _all: true },
+        }),
+      ]);
+      const completed = completedStats.get(doctor.id);
       const cut = (doctor.platformCutPct ?? 20) / 100;
-      let gross = 0;
-      let platform = 0;
-      let doctorShare = 0;
-      for (const c of completed) {
-        gross += c.fee;
-        platform += c.fee * cut;
-        doctorShare += c.fee * (1 - cut);
-      }
+      const gross = completed?.gross ?? 0;
+      const platform = gross * cut;
+      const doctorShare = gross - platform;
 
       const byStatus: Record<string, number> = {};
-      for (const c of doctor.consultations) {
-        byStatus[c.status] = (byStatus[c.status] || 0) + 1;
-      }
+      for (const g of statusGroups) byStatus[g.status] = g._count._all;
 
       return {
         doctor,
         earnings: {
-          completedCount: completed.length,
+          completedCount: completed?.consults ?? 0,
           gross,
           platform,
           doctorShare,
@@ -82,24 +84,24 @@ export class AdminDoctorsController {
     const doctors = await this.prisma.doctor.findMany({
       include: {
         schedules: { orderBy: { dayOfWeek: "asc" } },
-        consultations: {
-          where: { status: "COMPLETED" },
-          select: { fee: true },
-        },
         _count: { select: { consultations: true } },
       },
       orderBy: { name: "asc" },
     });
+    const stats = await doctorCompletedStats(
+      this.prisma,
+      doctors.map((d) => d.id),
+    );
 
     const enriched = doctors.map((d) => {
       const cut = (d.platformCutPct ?? 20) / 100;
-      const gross = d.consultations.reduce((s, c) => s + c.fee, 0);
+      const done = stats.get(d.id);
+      const gross = done?.gross ?? 0;
       const platform = gross * cut;
       const doctorShare = gross - platform;
-      const { consultations, ...rest } = d;
       return {
-        ...rest,
-        completedConsults: consultations.length,
+        ...d,
+        completedConsults: done?.consults ?? 0,
         earnings: { gross, platform, doctorShare },
       };
     });

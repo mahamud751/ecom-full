@@ -24,7 +24,7 @@ import Voice, {
   type SpeechResultsEvent,
 } from '@react-native-voice/voice';
 import { http } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { AppIcon, type IconName } from '../components/AppIcon';
 import { Chip, EmptyView, IconTile, Loading, SmartImage } from '../components/ui';
 import { colors, formatPrice, radii, shadows } from '../theme';
@@ -63,6 +63,9 @@ export function SearchScreen({ navigation }: Props) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [listening, setListening] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Responses can arrive out of order; only the newest request may update.
+  const sugReq = useRef(0);
+  const searchReq = useRef(0);
 
   // Live suggestions (debounced)
   useEffect(() => {
@@ -73,13 +76,17 @@ export function SearchScreen({ navigation }: Props) {
     }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
+      const id = ++sugReq.current;
       http
         .get('/search/suggest', { params: { q: query } })
         .then(res => {
+          if (id !== sugReq.current) return;
           setSugs(res.data.suggestions ?? []);
           setShowSugs(true);
         })
-        .catch(() => setSugs([]));
+        .catch(() => {
+          if (id === sugReq.current) setSugs([]);
+        });
     }, 250);
     return () => {
       if (timer.current) clearTimeout(timer.current);
@@ -94,13 +101,16 @@ export function SearchScreen({ navigation }: Props) {
     setImageTip(null);
     setShowSugs(false);
     setSearching(true);
+    // A finished search also outranks any suggestion still in flight.
+    sugReq.current++;
+    const id = ++searchReq.current;
     try {
       const res = await http.get('/search', { params: { q: query, mode } });
-      setHits(res.data.hits ?? []);
+      if (id === searchReq.current) setHits(res.data.hits ?? []);
     } catch {
-      setHits([]);
+      if (id === searchReq.current) setHits([]);
     } finally {
-      setSearching(false);
+      if (id === searchReq.current) setSearching(false);
     }
   }, []);
 
@@ -335,7 +345,7 @@ export function SearchScreen({ navigation }: Props) {
               onPress={() => void search(s.label)}
             >
               {s.image ? (
-                <SmartImage uri={mediaUrl(s.image)} style={styles.sugImg} icon="pill" iconSize={14} />
+                <SmartImage uri={thumbUrl(s.image, 34)} style={styles.sugImg} icon="pill" iconSize={14} />
               ) : (
                 <View style={styles.sugIcon}>
                   <AppIcon name="search" color={colors.inkMuted} size={14} />
@@ -376,7 +386,7 @@ export function SearchScreen({ navigation }: Props) {
                 onPress={() => openHit(item)}
               >
                 <SmartImage
-                  uri={item.image ? mediaUrl(item.image) : null}
+                  uri={item.image ? thumbUrl(item.image, 62) : null}
                   style={styles.hitImg}
                   resizeMode="contain"
                   icon={hitIcon(item.type)}

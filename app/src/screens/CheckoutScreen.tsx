@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { AppIcon, type IconName } from '../components/AppIcon';
 import { Button, Card, EmptyView, Field, IconTile, SmartImage } from '../components/ui';
 import { useAuth } from '../store/auth';
@@ -178,7 +178,7 @@ export function CheckoutScreen({ navigation }: Props) {
           {items.map(i => (
             <View key={`${i.productId}:${i.variantId ?? ''}`} style={styles.item}>
               <SmartImage
-                uri={i.image ? mediaUrl(i.image) : null}
+                uri={i.image ? thumbUrl(i.image, 44) : null}
                 style={styles.itemImg}
                 resizeMode="contain"
                 icon="pill"

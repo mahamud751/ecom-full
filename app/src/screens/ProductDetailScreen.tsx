@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { AppIcon, type IconName } from '../components/AppIcon';
 import {
   Badge,
@@ -150,7 +150,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
             {(images.length ? images : [null]).map((img, i) => (
               <View key={i} style={styles.slide}>
                 <SmartImage
-                  uri={img ? mediaUrl(img) : null}
+                  uri={img ? thumbUrl(img, SCREEN_WIDTH) : null}
                   style={styles.heroImg}
                   resizeMode="contain"
                   icon="pill"

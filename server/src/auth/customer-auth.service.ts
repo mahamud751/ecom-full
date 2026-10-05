@@ -10,6 +10,7 @@ import { randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { TokenService } from "./token.service";
 import type { JwtPayload } from "./jwt-auth.guard";
+import { pageParams } from "../common/pagination";
 
 export type PublicUser = {
   id: string;
@@ -176,7 +177,11 @@ export class CustomerAuthService {
     return { user: toPublicUser(customer) };
   }
 
-  async myOrders(userId: string) {
+  async myOrders(
+    userId: string,
+    query: { page?: string; perPage?: string } = {},
+  ) {
+    const p = pageParams(query, { perPage: 50, maxPerPage: 100 });
     const customer = await this.prisma.customer.findUnique({
       where: { id: userId },
     });
@@ -187,26 +192,24 @@ export class CustomerAuthService {
       where: {
         OR: [
           { customerId: customer.id },
-          ...(customer.email
-            ? [
-                {
-                  customerEmail: {
-                    equals: customer.email,
-                    mode: "insensitive" as const,
-                  },
-                },
-              ]
-            : []),
+          // Exact match (indexed): customer emails are stored lowercase and
+          // new orders are too. Older mixed-case guest orders need the
+          // one-off lowercase backfill to be matched.
+          ...(customer.email ? [{ customerEmail: customer.email }] : []),
           ...(customer.phone ? [{ customerPhone: customer.phone }] : []),
         ],
       },
       include: { items: true },
-      orderBy: { createdAt: "desc" },
-      take: 50,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: p.skip,
+      take: p.take + 1,
     });
+    const hasMore = orders.length > p.take;
 
     return {
-      orders: orders.map((o) => ({
+      page: p.page,
+      hasMore,
+      orders: orders.slice(0, p.take).map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
         status: o.status,

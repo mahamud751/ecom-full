@@ -17,8 +17,20 @@ export class CatalogController {
 
   @Get("sitemap")
   @ApiOperation({ summary: "Slugs + updatedAt for SEO sitemap" })
-  sitemap() {
-    return this.catalog.sitemap();
+  @ApiQuery({
+    name: "products",
+    required: false,
+    description: "0 = omit the inline first page of product slugs",
+  })
+  sitemap(@Query("products") products?: string) {
+    return this.catalog.sitemap({ products });
+  }
+
+  @Get("sitemap/products")
+  @ApiOperation({ summary: "One page (45k) of product slugs for the sitemap" })
+  @ApiQuery({ name: "page", required: false })
+  sitemapProducts(@Query("page") page?: string) {
+    return this.catalog.sitemapProducts(page ?? 1);
   }
 
   @Get("categories")
@@ -68,6 +80,12 @@ export class CatalogController {
   @ApiQuery({ name: "max", required: false })
   @ApiQuery({ name: "section", required: false })
   @ApiQuery({ name: "perPage", required: false })
+  @ApiQuery({
+    name: "lite",
+    required: false,
+    description:
+      "1 = just products + hasMore (no total count, no filter lists) — for infinite scroll",
+  })
   products(
     @Query("flash") flash?: string,
     @Query("sort") sort?: string,
@@ -78,6 +96,7 @@ export class CatalogController {
     @Query("max") max?: string,
     @Query("section") section?: string,
     @Query("perPage") perPage?: string,
+    @Query("lite") lite?: string,
   ) {
     return this.catalog.listProducts({
       flash,
@@ -89,6 +108,7 @@ export class CatalogController {
       max,
       section,
       perPage,
+      lite,
     });
   }
 

@@ -11,6 +11,9 @@ import {
   Select,
   Empty,
   StatCard,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { formatPrice } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -39,14 +42,19 @@ export default function AdminNotifiesPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [page, setPage] = useListPage(status);
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const q = status ? `?status=${status}` : "";
-    const d = await adminFetch(`/admin/notifies${q}`).then((r) => r.json());
+    const params = new URLSearchParams({ page: String(page) });
+    if (status) params.set("status", status);
+    const d = await adminFetch(`/admin/notifies?${params}`).then((r) => r.json());
     setNotifies(d.notifies || []);
+    setPageInfo(d.pagination ?? null);
     setCounts(d.counts || { active: 0, ready: 0, sent: 0 });
     setLoading(false);
-  }, [status]);
+  }, [status, page]);
 
   useEffect(() => {
     void load();
@@ -163,6 +171,11 @@ export default function AdminNotifiesPage() {
           ))}
         </div>
       )}
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/refunds")
@@ -13,9 +14,15 @@ export class AdminRefundsController {
 
   @Get()
   @ApiOperation({ summary: "List refund requests" })
-  async list(@Query("status") status?: string) {
+  async list(
+    @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    const p = pageParams({ page, perPage }, { perPage: 100 });
+    const where = status ? { status: status as never } : undefined;
     const refunds = await this.prisma.refundRequest.findMany({
-      where: status ? { status: status as never } : undefined,
+      where,
       include: {
         order: {
           select: {
@@ -28,10 +35,12 @@ export class AdminRefundsController {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: p.skip,
+      take: p.take,
     });
-    return { refunds };
+    const total = await this.prisma.refundRequest.count({ where });
+    return { refunds, pagination: pagination(p, total) };
   }
 
   @Patch()

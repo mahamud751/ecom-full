@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuthUser, JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { ApiError } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/stock")
@@ -14,20 +15,32 @@ export class AdminStockController {
 
   @Get()
   @ApiOperation({ summary: "Stock movements + low-stock alerts" })
-  async list(@Query("productId") productId?: string) {
-    const movements = await this.prisma.stockMovement.findMany({
-      where: productId ? { productId } : undefined,
-      include: { product: { select: { name: true, sku: true, stock: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+  async list(
+    @Query("productId") productId?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    const p = pageParams({ page, perPage }, { perPage: 100 });
+    const where = productId ? { productId } : undefined;
+    const [movements, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        include: {
+          product: { select: { name: true, sku: true, stock: true } },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: p.skip,
+        take: p.take,
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
     const lowStock = await this.prisma.product.findMany({
       where: { isActive: true, stock: { lte: 10 } },
       orderBy: { stock: "asc" },
       take: 50,
       include: { category: true },
     });
-    return { movements, lowStock };
+    return { movements, lowStock, pagination: pagination(p, total) };
   }
 
   @Post()

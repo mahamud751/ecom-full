@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { AppIcon } from '../components/AppIcon';
 import { type IconName } from '../components/AppIcon';
 import {
@@ -30,6 +31,8 @@ import { colors, formatPrice, gradients, radii, shadows } from '../theme';
 import type { DoctorDetail } from '../types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
+
+const HERO_DP = Dimensions.get('window').width;
 
 /* ── Doctor detail ───────────────────────────────────────────────── */
 
@@ -65,7 +68,7 @@ export function DoctorDetailScreen({ navigation, route }: DetailProps) {
       >
         <View style={styles.heroWrap}>
           <SmartImage
-            uri={doctor.image ? mediaUrl(doctor.image) : null}
+            uri={doctor.image ? thumbUrl(doctor.image, HERO_DP) : null}
             style={styles.hero}
             icon="doctor"
             iconSize={80}

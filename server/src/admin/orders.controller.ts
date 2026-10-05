@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Patch, Query, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import { pageParams, pagination } from "../common/pagination";
 
 @ApiTags("admin")
 @Controller("admin/orders")
@@ -13,29 +15,40 @@ export class AdminOrdersController {
 
   @Get()
   @ApiOperation({ summary: "List orders (status / search)" })
-  async list(@Query("status") status?: string, @Query("q") q?: string) {
-    const orders = await this.prisma.order.findMany({
-      where: {
-        ...(status ? { status: status as never } : {}),
-        ...(q
-          ? {
-              OR: [
-                { orderNumber: { contains: q, mode: "insensitive" } },
-                { customerName: { contains: q, mode: "insensitive" } },
-                { customerPhone: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        items: true,
-        rider: true,
-        vendor: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    return { orders };
+  async list(
+    @Query("status") status?: string,
+    @Query("q") q?: string,
+    @Query("page") page?: string,
+    @Query("perPage") perPage?: string,
+  ) {
+    const p = pageParams({ page, perPage }, { perPage: 100 });
+    const where: Prisma.OrderWhereInput = {
+      ...(status ? { status: status as never } : {}),
+      ...(q
+        ? {
+            OR: [
+              { orderNumber: { contains: q, mode: "insensitive" } },
+              { customerName: { contains: q, mode: "insensitive" } },
+              { customerPhone: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        include: {
+          items: true,
+          rider: true,
+          vendor: true,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: p.skip,
+        take: p.take,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { orders, pagination: pagination(p, total) };
   }
 
   @Patch()

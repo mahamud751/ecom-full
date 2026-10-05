@@ -10,6 +10,9 @@ import {
   Select,
   Empty,
   StatCard,
+  Pager,
+  useListPage,
+  type Pagination,
 } from "@/components/admin/ui";
 import { Loader2 } from "lucide-react";
 
@@ -31,14 +34,19 @@ export default function AdminSupportPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [page, setPage] = useListPage(status);
+  const [pageInfo, setPageInfo] = useState<Pagination | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const q = status ? `?status=${status}` : "";
-    const d = await adminFetch(`/admin/support${q}`).then((r) => r.json());
+    const params = new URLSearchParams({ page: String(page) });
+    if (status) params.set("status", status);
+    const d = await adminFetch(`/admin/support?${params}`).then((r) => r.json());
     setTickets(d.tickets || []);
+    setPageInfo(d.pagination ?? null);
     setOpen(d.open || 0);
     setLoading(false);
-  }, [status]);
+  }, [status, page]);
 
   useEffect(() => {
     void load();
@@ -119,6 +127,11 @@ export default function AdminSupportPage() {
           ))}
         </div>
       )}
+      <Pager
+        pagination={pageInfo}
+        onPage={setPage}
+        disabled={loading}
+      />
     </div>
   );
 }

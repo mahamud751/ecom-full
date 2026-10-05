@@ -13,7 +13,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { http, apiErrorMessage } from '../api/client';
-import { mediaUrl } from '../config';
+import { thumbUrl } from '../config';
 import { AppIcon } from '../components/AppIcon';
 import { tabBarSpace } from '../components/FluidTabBar';
 import {
@@ -120,7 +120,7 @@ export function DoctorsScreen({ navigation }: TabScreenProps<'Doctors'>) {
             >
               <View>
                 <SmartImage
-                  uri={item.image ? mediaUrl(item.image) : null}
+                  uri={item.image ? thumbUrl(item.image, 112) : null}
                   style={styles.img}
                   icon="doctor"
                 />

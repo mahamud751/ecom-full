@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { ApiError } from "../common/utils";
+import { doctorCompletedStats, riderDeliveryStats } from "./payout-stats";
 
 @ApiTags("admin")
 @Controller("admin/earnings")
@@ -40,53 +41,35 @@ export class AdminEarningsController {
           }),
         ]);
 
-      // ── Doctor consults (full doctor include) ─────────────────
-      const completedConsults = await this.prisma.consultation.findMany({
-        where: { status: "COMPLETED" },
-        include: { doctor: true },
+      // ── Doctor consults (summed per doctor in the database) ──────
+      const doctorStats = await doctorCompletedStats(this.prisma);
+      const statDoctors = await this.prisma.doctor.findMany({
+        where: { id: { in: [...doctorStats.keys()] } },
+        select: { id: true, name: true, specialty: true, platformCutPct: true },
       });
 
       let doctorGross = 0;
       let doctorPlatform = 0;
       let doctorPayout = 0;
-      const doctorMap = new Map<
-        string,
-        {
-          id: string;
-          name: string;
-          specialty: string;
-          consults: number;
-          gross: number;
-          platform: number;
-          doctorShare: number;
-        }
-      >();
-
-      for (const c of completedConsults) {
-        const fee = Number(c.fee) || 0;
-        const cutPct = c.doctor.platformCutPct ?? 20;
-        const cut = cutPct / 100;
-        const platform = fee * cut;
-        const share = fee - platform;
-        doctorGross += fee;
+      let completedConsultCount = 0;
+      const doctorLeaders = statDoctors.map((d) => {
+        const st = doctorStats.get(d.id)!;
+        const platform = st.gross * ((d.platformCutPct ?? 20) / 100);
+        const doctorShare = st.gross - platform;
+        doctorGross += st.gross;
         doctorPlatform += platform;
-        doctorPayout += share;
-
-        const row = doctorMap.get(c.doctorId) || {
-          id: c.doctor.id,
-          name: c.doctor.name,
-          specialty: c.doctor.specialty,
-          consults: 0,
-          gross: 0,
-          platform: 0,
-          doctorShare: 0,
+        doctorPayout += doctorShare;
+        completedConsultCount += st.consults;
+        return {
+          id: d.id,
+          name: d.name,
+          specialty: d.specialty,
+          consults: st.consults,
+          gross: st.gross,
+          platform,
+          doctorShare,
         };
-        row.consults += 1;
-        row.gross += fee;
-        row.platform += platform;
-        row.doctorShare += share;
-        doctorMap.set(c.doctorId, row);
-      }
+      });
 
       const [activeConsults, allConsults] = await Promise.all([
         this.prisma.consultation.count({
@@ -109,53 +92,36 @@ export class AdminEarningsController {
         }),
       ]);
 
-      // ── Riders ─────────────────────────────────────────────────
-      const deliveredWithRider = await this.prisma.order.findMany({
-        where: { status: "DELIVERED", riderId: { not: null } },
-        include: { rider: true },
+      // ── Riders (summed per rider in the database) ──────────────
+      const riderStats = await riderDeliveryStats(this.prisma);
+      const statRiders = await this.prisma.rider.findMany({
+        where: { id: { in: riderStats.map((r) => r.riderId) } },
+        select: { id: true, name: true, phone: true, zone: true },
       });
+      const riderById = new Map(statRiders.map((r) => [r.id, r]));
 
       let deliveryFeesCollected = 0;
       let riderPayoutTotal = 0;
-      const riderMap = new Map<
-        string,
-        {
-          id: string;
-          name: string;
-          phone: string;
-          zone: string | null;
-          deliveries: number;
-          deliveryFees: number;
-          riderEarned: number;
-          platformKept: number;
-        }
-      >();
-
-      for (const o of deliveredWithRider) {
-        if (!o.rider) continue;
-        const fee = Number(o.deliveryFee) || 0;
-        const perDelivery = o.rider.perDelivery ?? 40;
-        const earned = Math.min(perDelivery, fee);
-        const kept = Math.max(0, fee - earned);
-        deliveryFeesCollected += fee;
-        riderPayoutTotal += earned;
-
-        const row = riderMap.get(o.rider.id) || {
-          id: o.rider.id,
-          name: o.rider.name,
-          phone: o.rider.phone,
-          zone: o.rider.zone,
-          deliveries: 0,
-          deliveryFees: 0,
-          riderEarned: 0,
-          platformKept: 0,
-        };
-        row.deliveries += 1;
-        row.deliveryFees += fee;
-        row.riderEarned += earned;
-        row.platformKept += kept;
-        riderMap.set(o.rider.id, row);
-      }
+      let riderDeliveryCount = 0;
+      const riderLeaders = riderStats.flatMap((st) => {
+        const r = riderById.get(st.riderId);
+        if (!r) return [];
+        deliveryFeesCollected += st.deliveryFees;
+        riderPayoutTotal += st.riderEarned;
+        riderDeliveryCount += st.deliveries;
+        return [
+          {
+            id: r.id,
+            name: r.name,
+            phone: r.phone,
+            zone: r.zone,
+            deliveries: st.deliveries,
+            deliveryFees: st.deliveryFees,
+            riderEarned: st.riderEarned,
+            platformKept: Math.max(0, st.deliveryFees - st.riderEarned),
+          },
+        ];
+      });
 
       const ecomRevenue = ecomAll._sum.total ?? 0;
       const labRevenue = labAgg._sum.total ?? 0;
@@ -195,15 +161,13 @@ export class AdminEarningsController {
           })),
         },
         doctors: {
-          completedConsults: completedConsults.length,
+          completedConsults: completedConsultCount,
           activeConsults,
           allConsults,
           gross: doctorGross,
           platform: doctorPlatform,
           doctorPayout,
-          leaders: Array.from(doctorMap.values()).sort(
-            (a, b) => b.gross - a.gross,
-          ),
+          leaders: doctorLeaders.sort((a, b) => b.gross - a.gross),
         },
         lab: {
           bookingCount: labAgg._count._all,
@@ -212,13 +176,11 @@ export class AdminEarningsController {
           reportReadyRevenue: labReady._sum.total ?? 0,
         },
         riders: {
-          deliveryCount: deliveredWithRider.length,
+          deliveryCount: riderDeliveryCount,
           deliveryFeesCollected,
           riderPayoutTotal,
           platformMargin: Math.max(0, deliveryFeesCollected - riderPayoutTotal),
-          leaders: Array.from(riderMap.values()).sort(
-            (a, b) => b.riderEarned - a.riderEarned,
-          ),
+          leaders: riderLeaders.sort((a, b) => b.riderEarned - a.riderEarned),
         },
       };
     } catch (e) {

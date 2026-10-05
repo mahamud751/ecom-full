@@ -11,6 +11,8 @@ import {
   Modal,
   Badge,
   Empty,
+  Pager,
+  type Pagination,
 } from "@/components/admin/ui";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { formatPrice } from "@/lib/utils";
@@ -76,6 +78,23 @@ export default function AdminLabPage() {
     void load();
   }, [load]);
 
+  // Bookings grow without bound, so the tab pages through them separately.
+  const [bookingPage, setBookingPage] = useState(1);
+  const [bookingPageInfo, setBookingPageInfo] = useState<Pagination | null>(
+    null,
+  );
+  const loadBookings = useCallback(async () => {
+    const d = await adminFetch(
+      `/admin/lab?kind=bookings&page=${bookingPage}`,
+    ).then((r) => r.json());
+    setBookings(d.bookings || []);
+    setBookingPageInfo(d.pagination ?? null);
+  }, [bookingPage]);
+
+  useEffect(() => {
+    if (tab === "bookings") void loadBookings();
+  }, [tab, loadBookings]);
+
   async function create() {
     if (!modal) return;
     const body =
@@ -126,7 +145,7 @@ export default function AdminLabPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: "booking", id, status }),
     });
-    void load();
+    void loadBookings();
   }
 
   async function toggleTest(id: string, isActive: boolean) {
@@ -302,6 +321,7 @@ export default function AdminLabPage() {
             </AdminCard>
           ))}
           {bookings.length === 0 && <Empty text="No lab bookings yet" />}
+          <Pager pagination={bookingPageInfo} onPage={setBookingPage} />
         </div>
       )}
 

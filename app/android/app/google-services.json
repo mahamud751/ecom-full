@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "497282867236",
+    "project_id": "ahona-d1fc3",
+    "storage_bucket": "ahona-d1fc3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:497282867236:android:1eb77477a3d1b6293ef8b1",
+        "android_client_info": {
+          "package_name": "com.ahona"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKCw51A39lWY72USB5AohVh8etWvc8OZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

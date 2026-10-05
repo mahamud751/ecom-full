@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApiError } from "../common/utils";
+import { pageParams } from "../common/pagination";
 
 @ApiTags("reviews")
 @Controller("reviews")
@@ -16,9 +17,13 @@ export class ReviewsController {
     @Query("productId") productId?: string,
     @Query("slug") slug?: string,
     @Query("limit") limitRaw?: string,
+    @Query("page") page?: string,
   ) {
     try {
-      const limit = Math.min(50, Number(limitRaw || 20));
+      const p = pageParams(
+        { page, perPage: limitRaw },
+        { perPage: 20, maxPerPage: 50 },
+      );
 
       let pid: string | null = productId || null;
       if (!pid && slug) {
@@ -39,9 +44,11 @@ export class ReviewsController {
             select: { name: true, slug: true, image: true },
           },
         },
-        orderBy: { createdAt: "desc" },
-        take: limit,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: p.skip,
+        take: p.take + 1,
       });
+      const hasMore = reviews.length > p.take;
 
       const summary = pid
         ? await this.prisma.productReview.groupBy({
@@ -52,7 +59,9 @@ export class ReviewsController {
         : [];
 
       return {
-        reviews: reviews.map((r) => ({
+        page: p.page,
+        hasMore,
+        reviews: reviews.slice(0, p.take).map((r) => ({
           id: r.id,
           authorName: r.authorName,
           rating: r.rating,
