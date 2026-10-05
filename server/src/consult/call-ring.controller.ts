@@ -62,23 +62,43 @@ export class CallRingController {
     return this.push.tokensForCustomers(customers.map((c) => c.id));
   }
 
-  private async setState(id: string, callState: string, from?: string[]) {
+  /**
+   * Moves the ring to `callState`. With `ringAt`, only if that exact ring
+   * (identified by its start time) is still RINGING, so a stale timer or a
+   * late answer can't end a newer ring.
+   */
+  private async setState(
+    id: string,
+    callState: string,
+    ringAt?: Date,
+    at = new Date(),
+  ) {
     const res = await this.prisma.consultation.updateMany({
-      where: { id, ...(from ? { callState: { in: from } } : {}) },
-      data: { callState, callStateAt: new Date() },
+      where: {
+        id,
+        ...(ringAt ? { callState: "RINGING", callStateAt: ringAt } : {}),
+      },
+      data: { callState, callStateAt: at },
     });
     return res.count > 0;
   }
 
-  /** Tells every phone of the patient to stop ringing (and why). */
+  /** Tells every phone of the patient to stop this ring (and why). */
   private async dismiss(
     c: { id: string; patientPhone: string; doctor: { name: string } },
+    ringAt: Date,
     reason: "cancelled" | "declined" | "missed" | "accepted",
   ) {
     const tokens = await this.patientTokens(c.patientPhone);
     await this.push.sendData(
       tokens,
-      { type: "call_end", consultId: c.id, reason, doctorName: c.doctor.name },
+      {
+        type: "call_end",
+        consultId: c.id,
+        ringId: String(ringAt.getTime()),
+        reason,
+        doctorName: c.doctor.name,
+      },
       { ttlSeconds: reason === "missed" ? 24 * 3600 : 60 },
     );
   }
@@ -109,19 +129,20 @@ export class CallRingController {
       };
     }
 
-    await this.setState(c.id, "RINGING");
-    const ringStartedAt = Date.now();
+    const ringAt = new Date();
+    await this.setState(c.id, "RINGING", undefined, ringAt);
     const sent = await this.push.sendData(
       tokens,
       {
         type: "incoming_call",
         consultId: c.id,
         consultNumber: c.consultNumber,
+        ringId: String(ringAt.getTime()),
         channel: c.channelName,
         mode: c.type === "AUDIO" ? "AUDIO" : "VIDEO",
         doctorName: c.doctor.name,
         doctorImage: c.doctor.image ?? "",
-        expiresAt: String(ringStartedAt + RING_SECONDS * 1000),
+        expiresAt: String(ringAt.getTime() + RING_SECONDS * 1000),
       },
       // A late delivery must never ring an old call.
       { ttlSeconds: RING_SECONDS },
@@ -131,8 +152,8 @@ export class CallRingController {
     // phone still stops by itself at expiresAt.
     setTimeout(() => {
       void (async () => {
-        if (await this.setState(c.id, "MISSED", ["RINGING"])) {
-          await this.dismiss(c, "missed");
+        if (await this.setState(c.id, "MISSED", ringAt)) {
+          await this.dismiss(c, ringAt, "missed");
         }
       })().catch((e) => this.log.error(`Missed-call timeout: ${e}`));
     }, RING_SECONDS * 1000);
@@ -150,8 +171,12 @@ export class CallRingController {
     if (c.doctorId !== user.sub) {
       throw new ApiError(403, "Not your consultation");
     }
-    if (await this.setState(c.id, "CANCELLED", ["RINGING"])) {
-      await this.dismiss(c, "cancelled");
+    if (
+      c.callState === "RINGING" &&
+      c.callStateAt &&
+      (await this.setState(c.id, "CANCELLED", c.callStateAt))
+    ) {
+      await this.dismiss(c, c.callStateAt, "cancelled");
     }
     return { success: true };
   }
@@ -165,20 +190,26 @@ export class CallRingController {
   @ApiOperation({ summary: "Patient accepts or declines a ringing call" })
   async answer(
     @Param("id") id: string,
-    @Body() body: { answer?: "accept" | "decline" },
+    @Body() body: { answer?: "accept" | "decline"; ringId?: string },
   ) {
     const c = await this.consultation(id);
     const accept = body?.answer === "accept";
-    const changed = await this.setState(
-      c.id,
-      accept ? "ACCEPTED" : "DECLINED",
-      ["RINGING"],
-    );
+    // The ring being answered: the one the phone was shown, else the
+    // current one.
+    const ringAt = body?.ringId
+      ? new Date(Number(body.ringId))
+      : c.callState === "RINGING"
+        ? c.callStateAt
+        : null;
+    const changed =
+      ringAt &&
+      !Number.isNaN(ringAt.getTime()) &&
+      (await this.setState(c.id, accept ? "ACCEPTED" : "DECLINED", ringAt));
     if (!changed) {
       throw new ApiError(409, "This call is no longer ringing");
     }
     // Stop the ring on the patient's other phones too.
-    await this.dismiss(c, accept ? "accepted" : "declined");
+    await this.dismiss(c, ringAt, accept ? "accepted" : "declined");
     return {
       success: true,
       consultation: {

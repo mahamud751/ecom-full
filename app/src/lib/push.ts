@@ -2,7 +2,7 @@
  * Registers this phone for push (FCM) while a customer is signed in, so the
  * doctor can ring it even when the app is closed.
  */
-import { Alert, Platform } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import notifee from '@notifee/react-native';
 import {
   getMessaging,
@@ -30,7 +30,6 @@ export async function registerForPush(): Promise<() => void> {
   } catch {
     // Offline or no Play Services; the refresh listener retries later.
   }
-  void maybeAskBatteryException();
   return onTokenRefresh(messaging, token => {
     void sendToken(token).catch(() => undefined);
   });
@@ -48,9 +47,10 @@ export async function unregisterFromPush() {
 
 /**
  * Xiaomi/Oppo/Vivo/Realme battery savers block pushes for swiped-away apps,
- * so calls would never ring. Ask once to exempt the app.
+ * so calls would never ring. Ask once, where a doctor's call is expected
+ * (the consultation screen), to exempt the app.
  */
-async function maybeAskBatteryException() {
+export async function askBatteryExceptionOnce() {
   if (Platform.OS !== 'android' || storage.getBoolean(BATTERY_PROMPT_KEY)) {
     return;
   }
@@ -58,13 +58,12 @@ async function maybeAskBatteryException() {
   storage.set(BATTERY_PROMPT_KEY, true);
   Alert.alert(
     'Never miss a doctor’s call',
-    'Allow Ahona to run in the background so your phone can ring when a doctor calls, even if the app is closed.',
+    'So your phone rings when the doctor calls, even with Ahona closed: open Settings → Battery (App battery usage) → choose "Unrestricted".',
     [
       { text: 'Not now', style: 'cancel' },
-      {
-        text: 'Allow',
-        onPress: () => void notifee.openBatteryOptimizationSettings(),
-      },
+      // Ahona's own app-info page (the generic battery list is easy to
+      // mis-tap and some phones open the wrong app from it).
+      { text: 'Open settings', onPress: () => void Linking.openSettings() },
     ],
   );
 }

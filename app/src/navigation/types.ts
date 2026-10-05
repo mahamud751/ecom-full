@@ -37,6 +37,7 @@ export type RootParamList = {
   };
   IncomingCall: {
     consultId: string;
+    ringId: string;
     doctorName: string;
     doctorImage: string;
     channel: string;

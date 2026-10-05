@@ -16,6 +16,7 @@ import {
   statusTone,
 } from '../components/ui';
 import { storage } from '../lib/storage';
+import { askBatteryExceptionOnce } from '../lib/push';
 import { AppIcon } from '../components/AppIcon';
 import { colors, formatPrice, gradients, radii } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -159,6 +160,11 @@ export function ConsultDetailScreen({ navigation, route }: DetailProps) {
   const { id } = route.params;
   const [consult, setConsult] = useState<ConsultFull | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // The doctor may ring this phone for this consult; make sure it can.
+  useEffect(() => {
+    void askBatteryExceptionOnce();
+  }, []);
 
   const load = useCallback(() => {
     http

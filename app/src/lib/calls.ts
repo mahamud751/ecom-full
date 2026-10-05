@@ -27,6 +27,8 @@ import { navigateWhenReady, navigationRef } from './navigation';
 
 export type IncomingCall = {
   consultId: string;
+  /** Identifies this ring (its start time); a consult can be rung again. */
+  ringId: string;
   doctorName: string;
   doctorImage: string;
   channel: string;
@@ -64,6 +66,7 @@ function parseCall(data: Record<string, unknown> | undefined): IncomingCall | nu
   if (!data || data.type !== 'incoming_call' || !data.consultId) return null;
   return {
     consultId: String(data.consultId),
+    ringId: String(data.ringId ?? ''),
     doctorName: String(data.doctorName ?? 'Your doctor'),
     doctorImage: String(data.doctorImage ?? ''),
     channel: String(data.channel ?? ''),
@@ -114,6 +117,7 @@ async function showRinging(call: IncomingCall) {
 function stringify(call: IncomingCall): Record<string, string> {
   return {
     consultId: call.consultId,
+    ringId: call.ringId,
     doctorName: call.doctorName,
     doctorImage: call.doctorImage,
     channel: call.channel,
@@ -122,10 +126,21 @@ function stringify(call: IncomingCall): Record<string, string> {
   };
 }
 
-async function stopRinging(consultId: string) {
-  await notifee.cancelNotification(notificationId(consultId));
+/**
+ * Stops the ring for this consult. With `ringId`, only if that is the ring
+ * being shown: an "ended" message for an older ring must not silence a
+ * newer one.
+ */
+async function stopRinging(consultId: string, ringId?: string) {
+  const sameRing = (shown?: unknown) =>
+    !ringId || !shown || String(shown) === ringId;
+  const displayed = await notifee.getDisplayedNotifications();
+  const shown = displayed.find(d => d.id === notificationId(consultId));
+  if (!shown || sameRing(shown.notification.data?.ringId)) {
+    await notifee.cancelNotification(notificationId(consultId));
+  }
   const current = useIncomingCall.getState().call;
-  if (current?.consultId === consultId) {
+  if (current?.consultId === consultId && sameRing(current.ringId)) {
     useIncomingCall.setState({ call: null });
     if (navigationRef.isReady()) {
       const route = navigationRef.getCurrentRoute();
@@ -148,7 +163,7 @@ export async function handleRemoteMessage(message: RemoteMessage) {
   }
   if (data?.type === 'call_end' && data.consultId) {
     const consultId = String(data.consultId);
-    await stopRinging(consultId);
+    await stopRinging(consultId, data.ringId ? String(data.ringId) : undefined);
     if (data.reason === 'missed') {
       await ensureChannels();
       await notifee.displayNotification({
@@ -167,9 +182,12 @@ export async function handleRemoteMessage(message: RemoteMessage) {
 
 /** Accept or decline on the server; accept then opens the call screen. */
 export async function answerCall(call: IncomingCall, answer: 'accept' | 'decline') {
-  await stopRinging(call.consultId);
+  await stopRinging(call.consultId, call.ringId);
   try {
-    await http.post(`/consultations/${call.consultId}/call/answer`, { answer });
+    await http.post(`/consultations/${call.consultId}/call/answer`, {
+      answer,
+      ringId: call.ringId || undefined,
+    });
   } catch {
     // Already ended (cancelled / missed / answered elsewhere): nothing to join.
     return;

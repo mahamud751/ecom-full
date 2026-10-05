@@ -23,7 +23,8 @@ export function IncomingCallScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const call = route.params;
   const ringing = useIncomingCall(
-    s => s.call?.consultId === call.consultId,
+    s =>
+      s.call?.consultId === call.consultId && s.call.ringId === call.ringId,
   );
 
   // Ring timed out: leave on our own.
