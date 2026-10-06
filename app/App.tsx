@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import notifee from '@notifee/react-native';
@@ -16,6 +16,7 @@ import {
   handleForegroundMessage,
   handleInitialNotification,
   handleNotificationEvent,
+  showRingingCallIfAny,
 } from './src/lib/calls';
 import { registerForPush } from './src/lib/push';
 import { colors } from './src/theme';
@@ -25,14 +26,20 @@ function App() {
     // Restore the session (refresh token → /auth/me) on cold start.
     void useAuth.getState().bootstrap();
     // Opened by a call notification (full-screen ring, tap, or Accept)?
-    void handleInitialNotification();
+    void handleInitialNotification().then(() => showRingingCallIfAny());
     const offMessage = onMessage(getMessaging(), handleForegroundMessage);
     const offEvents = notifee.onForegroundEvent(event =>
       handleNotificationEvent(event, true),
     );
+    // Brought to the front while a call rings (e.g. by the lock-screen
+    // full-screen alert): show the ringing screen.
+    const offAppState = AppState.addEventListener('change', state => {
+      if (state === 'active') void showRingingCallIfAny();
+    });
     return () => {
       offMessage();
       offEvents();
+      offAppState.remove();
     };
   }, []);
 

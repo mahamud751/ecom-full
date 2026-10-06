@@ -20,6 +20,7 @@ import {
   type IRtcEngine,
 } from 'react-native-agora';
 import { http, apiErrorMessage } from '../api/client';
+import { setCallOverLockScreen } from '../lib/lockScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { colors } from '../theme';
@@ -47,6 +48,13 @@ export function CallRoomScreen({ navigation, route }: Props) {
   const [remoteUid, setRemoteUid] = useState<number | undefined>(undefined);
   const [, setJoined] = useState(false);
   const [micOn, setMicOn] = useState(true);
+
+  // A call answered on a locked phone stays visible over the lock screen
+  // until it ends; then the phone is locked again.
+  useEffect(() => {
+    setCallOverLockScreen(true);
+    return () => setCallOverLockScreen(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

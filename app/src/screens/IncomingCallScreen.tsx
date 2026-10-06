@@ -11,6 +11,7 @@ import { AppIcon } from '../components/AppIcon';
 import { SmartImage } from '../components/ui';
 import { mediaUrl } from '../config';
 import { answerCall, useIncomingCall } from '../lib/calls';
+import { setCallOverLockScreen } from '../lib/lockScreen';
 import { colors } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
@@ -38,6 +39,7 @@ export function IncomingCallScreen({ navigation, route }: Props) {
       useIncomingCall.setState(s =>
         s.call?.consultId === call.consultId ? { call: null } : s,
       );
+      setCallOverLockScreen(false);
       if (navigation.canGoBack()) navigation.goBack();
     }, ms);
     return () => clearTimeout(t);

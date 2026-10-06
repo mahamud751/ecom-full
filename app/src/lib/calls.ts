@@ -24,6 +24,7 @@ import { create } from 'zustand';
 import { http } from '../api/client';
 import { mediaUrl } from '../config';
 import { navigateWhenReady, navigationRef } from './navigation';
+import { setCallOverLockScreen } from './lockScreen';
 
 export type IncomingCall = {
   consultId: string;
@@ -88,6 +89,8 @@ async function showRinging(call: IncomingCall) {
     data: { type: 'incoming_call', ...stringify(call) },
     android: {
       channelId: CALL_CHANNEL,
+      smallIcon: 'ic_stat_notification',
+      color: '#15504a',
       category: AndroidCategory.CALL,
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
@@ -131,13 +134,19 @@ function stringify(call: IncomingCall): Record<string, string> {
  * being shown: an "ended" message for an older ring must not silence a
  * newer one.
  */
-async function stopRinging(consultId: string, ringId?: string) {
+async function stopRinging(
+  consultId: string,
+  ringId?: string,
+  opts: { joiningCall?: boolean } = {},
+) {
   const sameRing = (shown?: unknown) =>
     !ringId || !shown || String(shown) === ringId;
   const displayed = await notifee.getDisplayedNotifications();
   const shown = displayed.find(d => d.id === notificationId(consultId));
   if (!shown || sameRing(shown.notification.data?.ringId)) {
     await notifee.cancelNotification(notificationId(consultId));
+    // Back behind the lock screen — unless we're about to join the call.
+    if (!opts.joiningCall) setCallOverLockScreen(false);
   }
   const current = useIncomingCall.getState().call;
   if (current?.consultId === consultId && sameRing(current.ringId)) {
@@ -157,8 +166,12 @@ export async function handleRemoteMessage(message: RemoteMessage) {
   const call = parseCall(data);
   if (call) {
     if (call.expiresAt <= Date.now()) return; // delivered too late
-    await showRinging(call);
+    // All before posting: the full-screen alert can bring the app forward
+    // immediately, and it must then find this call and be allowed over the
+    // lock screen.
     useIncomingCall.setState({ call });
+    setCallOverLockScreen(true);
+    await showRinging(call);
     return;
   }
   if (data?.type === 'call_end' && data.consultId) {
@@ -173,6 +186,11 @@ export async function handleRemoteMessage(message: RemoteMessage) {
         data: { type: 'missed_call', consultId },
         android: {
           channelId: MISSED_CHANNEL,
+          smallIcon: 'ic_stat_notification',
+          color: '#15504a',
+          // Grouped, so Android never auto-bundles it with a ringing call
+          // (that would hide the call's Accept / Decline buttons).
+          groupId: 'missed_calls',
           pressAction: { id: 'missed', launchActivity: 'default' },
         },
       });
@@ -182,7 +200,9 @@ export async function handleRemoteMessage(message: RemoteMessage) {
 
 /** Accept or decline on the server; accept then opens the call screen. */
 export async function answerCall(call: IncomingCall, answer: 'accept' | 'decline') {
-  await stopRinging(call.consultId, call.ringId);
+  await stopRinging(call.consultId, call.ringId, {
+    joiningCall: answer === 'accept',
+  });
   try {
     await http.post(`/consultations/${call.consultId}/call/answer`, {
       answer,
@@ -190,6 +210,7 @@ export async function answerCall(call: IncomingCall, answer: 'accept' | 'decline
     });
   } catch {
     // Already ended (cancelled / missed / answered elsewhere): nothing to join.
+    setCallOverLockScreen(false);
     return;
   }
   if (answer === 'accept') {
@@ -252,6 +273,44 @@ export async function handleInitialNotification() {
     useIncomingCall.setState({ call });
     navigateWhenReady('IncomingCall', call);
   }
+}
+
+/**
+ * If a call is ringing right now, show the ringing screen. Run when the app
+ * comes to the front: a locked phone's full-screen alert (or the user
+ * opening Ahona while it rings) brings an already-running app forward
+ * without any notification event, so nothing else would open the screen.
+ */
+export async function showRingingCallIfAny(retry = true) {
+  let call = useIncomingCall.getState().call;
+  if (!call) {
+    const displayed = await notifee.getDisplayedNotifications();
+    for (const d of displayed) {
+      const c = parseCall(d.notification.data as Record<string, unknown>);
+      if (c) {
+        call = c;
+        break;
+      }
+    }
+  }
+  const route = navigationRef.isReady()
+    ? navigationRef.getCurrentRoute()?.name
+    : undefined;
+  if (!call || call.expiresAt <= Date.now()) {
+    // Brought forward by the alert before the push handler finished?
+    if (retry) {
+      setTimeout(() => void showRingingCallIfAny(false), 800);
+    } else if (route !== 'CallRoom') {
+      // No ring, no live call: never stay visible over the lock screen
+      // (e.g. after a JS reload mid-call left the native flag on).
+      setCallOverLockScreen(false);
+    }
+    return;
+  }
+  setCallOverLockScreen(true);
+  if (route === 'IncomingCall' || route === 'CallRoom') return;
+  useIncomingCall.setState({ call });
+  navigateWhenReady('IncomingCall', call);
 }
 
 /** While the app is open: an incoming call also opens the ringing screen. */

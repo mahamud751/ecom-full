@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar / notification small icon: white medical cross (Android
+     tints it; must be single-colour on transparent). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M9.5,3h5a1,1 0,0 1,1 1v5.5h5.5a1,1 0,0 1,1 1v3a1,1 0,0 1,-1 1h-5.5v5.5a1,1 0,0 1,-1 1h-5a1,1 0,0 1,-1 -1v-5.5h-5.5a1,1 0,0 1,-1 -1v-3a1,1 0,0 1,1 -1h5.5v-5.5a1,1 0,0 1,1 -1z" />
+</vector>

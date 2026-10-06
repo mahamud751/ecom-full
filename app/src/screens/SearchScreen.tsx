@@ -65,6 +65,9 @@ export function SearchScreen({ navigation }: Props) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Responses can arrive out of order; only the newest request may update.
   const sugReq = useRef(0);
+  // The text a search just ran for: setting the box to it (chip, voice,
+  // suggestion tap) must not reopen the suggestions over the results.
+  const searchedFor = useRef<string | null>(null);
   const searchReq = useRef(0);
 
   // Live suggestions (debounced)
@@ -75,6 +78,7 @@ export function SearchScreen({ navigation }: Props) {
       return;
     }
     if (timer.current) clearTimeout(timer.current);
+    if (query === searchedFor.current) return;
     timer.current = setTimeout(() => {
       const id = ++sugReq.current;
       http
@@ -103,6 +107,7 @@ export function SearchScreen({ navigation }: Props) {
     setSearching(true);
     // A finished search also outranks any suggestion still in flight.
     sugReq.current++;
+    searchedFor.current = query;
     const id = ++searchReq.current;
     try {
       const res = await http.get('/search', { params: { q: query, mode } });
