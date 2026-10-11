@@ -1,11 +1,12 @@
 /**
- * Incoming doctor calls over FCM (Messenger-style ringing).
+ * Incoming consult calls over FCM (Messenger-style ringing), both ways.
  *
  * The server sends data-only, high-priority pushes:
- *   incoming_call → show a full-screen ringing notification (works with the
- *                   app closed or the phone locked) and, if the app is open,
- *                   the in-app IncomingCall screen
- *   call_end      → stop ringing (doctor cancelled, answered on another
+ *   incoming_call → the doctor is calling this patient's phone
+ *   patient_call  → a patient is calling this doctor's phone
+ *   Both show a full-screen ringing notification (works with the app closed
+ *   or the phone locked) and, if the app is open, the IncomingCall screen.
+ *   call_end      → stop ringing (caller hung up, answered on another
  *                   phone, declined, or missed — missed also leaves a
  *                   "Missed call" notification)
  *
@@ -22,6 +23,7 @@ import notifee, {
 import type { RemoteMessage } from '@react-native-firebase/messaging';
 import { create } from 'zustand';
 import { http } from '../api/client';
+import { doctorHttp } from '../api/doctorClient';
 import { mediaUrl } from '../config';
 import { navigateWhenReady, navigationRef } from './navigation';
 import { setCallOverLockScreen } from './lockScreen';
@@ -30,8 +32,10 @@ export type IncomingCall = {
   consultId: string;
   /** Identifies this ring (its start time); a consult can be rung again. */
   ringId: string;
-  doctorName: string;
-  doctorImage: string;
+  /** How this phone joins: a patient answering the doctor, or vice versa. */
+  role: 'patient' | 'doctor';
+  callerName: string;
+  callerImage: string;
   channel: string;
   mode: 'VIDEO' | 'AUDIO';
   expiresAt: number;
@@ -49,7 +53,7 @@ export const useIncomingCall = create<{ call: IncomingCall | null }>(() => ({
 async function ensureChannels() {
   await notifee.createChannel({
     id: CALL_CHANNEL,
-    name: 'Incoming doctor calls',
+    name: 'Incoming consultation calls',
     importance: AndroidImportance.HIGH,
     visibility: AndroidVisibility.PUBLIC,
     sound: 'default',
@@ -64,12 +68,19 @@ async function ensureChannels() {
 }
 
 function parseCall(data: Record<string, unknown> | undefined): IncomingCall | null {
-  if (!data || data.type !== 'incoming_call' || !data.consultId) return null;
+  if (!data?.consultId) return null;
+  const toDoctor = data.type === 'patient_call';
+  if (!toDoctor && data.type !== 'incoming_call') return null;
   return {
     consultId: String(data.consultId),
     ringId: String(data.ringId ?? ''),
-    doctorName: String(data.doctorName ?? 'Your doctor'),
-    doctorImage: String(data.doctorImage ?? ''),
+    role: toDoctor ? 'doctor' : 'patient',
+    // Doctor-bound rings name the patient; patient-bound ones the doctor.
+    callerName: String(
+      (toDoctor ? data.callerName : data.doctorName) ??
+        (toDoctor ? 'Patient' : 'Your doctor'),
+    ),
+    callerImage: String((toDoctor ? '' : data.doctorImage) ?? ''),
     channel: String(data.channel ?? ''),
     mode: data.mode === 'AUDIO' ? 'AUDIO' : 'VIDEO',
     expiresAt: Number(data.expiresAt) || Date.now() + 30_000,
@@ -81,12 +92,16 @@ async function showRinging(call: IncomingCall) {
   const remaining = call.expiresAt - Date.now();
   await notifee.displayNotification({
     id: notificationId(call.consultId),
-    title: call.doctorName,
+    title: call.callerName,
     body:
-      call.mode === 'AUDIO'
-        ? 'Incoming voice consultation'
-        : 'Incoming video consultation',
-    data: { type: 'incoming_call', ...stringify(call) },
+      call.role === 'doctor'
+        ? call.mode === 'AUDIO'
+          ? 'Patient calling — voice consultation'
+          : 'Patient calling — video consultation'
+        : call.mode === 'AUDIO'
+          ? 'Incoming voice consultation'
+          : 'Incoming video consultation',
+    data: stringify(call),
     android: {
       channelId: CALL_CHANNEL,
       smallIcon: 'ic_stat_notification',
@@ -110,19 +125,23 @@ async function showRinging(call: IncomingCall) {
       loopSound: true,
       lightUpScreen: true,
       timeoutAfter: Math.max(1000, remaining),
-      ...(call.doctorImage
-        ? { largeIcon: mediaUrl(call.doctorImage), circularLargeIcon: true }
+      ...(call.callerImage
+        ? { largeIcon: mediaUrl(call.callerImage), circularLargeIcon: true }
         : {}),
     },
   });
 }
 
+/** Notification data in the same shape as the push, so parseCall reads it. */
 function stringify(call: IncomingCall): Record<string, string> {
+  const doctorBound = call.role === 'doctor';
   return {
+    type: doctorBound ? 'patient_call' : 'incoming_call',
     consultId: call.consultId,
     ringId: call.ringId,
-    doctorName: call.doctorName,
-    doctorImage: call.doctorImage,
+    ...(doctorBound
+      ? { callerName: call.callerName }
+      : { doctorName: call.callerName, doctorImage: call.callerImage }),
     channel: call.channel,
     mode: call.mode,
     expiresAt: String(call.expiresAt),
@@ -178,12 +197,16 @@ export async function handleRemoteMessage(message: RemoteMessage) {
     const consultId = String(data.consultId);
     await stopRinging(consultId, data.ringId ? String(data.ringId) : undefined);
     if (data.reason === 'missed') {
+      const toDoctor = data.role === 'doctor';
+      const caller = toDoctor
+        ? String(data.callerName ?? 'A patient')
+        : String(data.doctorName ?? 'Your doctor');
       await ensureChannels();
       await notifee.displayNotification({
         id: `missed-${consultId}`,
         title: 'Missed call',
-        body: `${String(data.doctorName ?? 'Your doctor')} tried to call you`,
-        data: { type: 'missed_call', consultId },
+        body: `${caller} tried to call you`,
+        data: { type: 'missed_call', consultId, role: toDoctor ? 'doctor' : 'patient' },
         android: {
           channelId: MISSED_CHANNEL,
           smallIcon: 'ic_stat_notification',
@@ -204,20 +227,31 @@ export async function answerCall(call: IncomingCall, answer: 'accept' | 'decline
     joiningCall: answer === 'accept',
   });
   try {
-    await http.post(`/consultations/${call.consultId}/call/answer`, {
-      answer,
-      ringId: call.ringId || undefined,
-    });
+    if (call.role === 'doctor') {
+      await doctorHttp.post(`/consultations/${call.consultId}/call/doctor-answer`, {
+        answer,
+      });
+    } else {
+      await http.post(`/consultations/${call.consultId}/call/answer`, {
+        answer,
+        ringId: call.ringId || undefined,
+      });
+    }
   } catch {
-    // Already ended (cancelled / missed / answered elsewhere): nothing to join.
-    setCallOverLockScreen(false);
-    return;
+    // Patient: already ended (cancelled / missed / answered elsewhere), so
+    // nothing to join. Doctor: the patient may still be waiting — join
+    // anyway; the call screen explains a missing doctor session.
+    if (call.role !== 'doctor' || answer !== 'accept') {
+      setCallOverLockScreen(false);
+      return;
+    }
   }
   if (answer === 'accept') {
     navigateWhenReady('CallRoom', {
       consultationId: call.consultId,
       channel: call.channel,
       mode: call.mode,
+      role: call.role,
     });
   }
 }
@@ -235,7 +269,10 @@ export async function handleNotificationEvent(
   if (type === EventType.DISMISSED) return;
 
   if (data?.type === 'missed_call' && type === EventType.PRESS) {
-    navigateWhenReady('ConsultDetail', { id: String(data.consultId) });
+    // The patient's consult page; a doctor just lands in the app.
+    if (data.role !== 'doctor') {
+      navigateWhenReady('ConsultDetail', { id: String(data.consultId) });
+    }
     return;
   }
 
@@ -262,7 +299,7 @@ export async function handleInitialNotification() {
   const data = initial.notification.data as Record<string, unknown> | undefined;
   const call = parseCall(data);
   if (!call) {
-    if (data?.type === 'missed_call') {
+    if (data?.type === 'missed_call' && data.role !== 'doctor') {
       navigateWhenReady('ConsultDetail', { id: String(data.consultId) });
     }
     return;

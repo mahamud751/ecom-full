@@ -7,10 +7,12 @@ import { AuthModal } from "./AuthModal";
 /** Hydrates session + hosts premium auth modal globally */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refresh = useAuthStore((s) => s.refresh);
+  const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
+    hydrate();
     void refresh();
-  }, [refresh]);
+  }, [hydrate, refresh]);
 
   return (
     <>

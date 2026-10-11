@@ -1,8 +1,9 @@
 /**
- * Full-screen "Dr. X is calling" with Accept / Decline. Opened by an
+ * Full-screen "X is calling" with Accept / Decline (doctor → patient, or a
+ * patient → the doctor's phone). Opened by an
  * incoming-call push while the app is open, or when the ringing
  * notification launches the app (locked phone / tap). Closes itself when the
- * ring ends: timeout, doctor cancelled, or answered on another phone.
+ * ring ends: timeout, caller hung up, or answered on another phone.
  */
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -64,15 +65,15 @@ export function IncomingCallScreen({ navigation, route }: Props) {
       <View style={styles.ring2}>
         <View style={styles.ring1}>
           <SmartImage
-            uri={call.doctorImage ? mediaUrl(call.doctorImage) : null}
+            uri={call.callerImage ? mediaUrl(call.callerImage) : null}
             style={styles.avatar}
-            icon="doctor"
+            icon={call.role === 'doctor' ? 'user' : 'doctor'}
             iconSize={48}
           />
         </View>
       </View>
       <Text style={styles.name} numberOfLines={2}>
-        {call.doctorName}
+        {call.callerName}
       </Text>
       <Text style={styles.sub}>
         {ringing ? 'is calling you…' : 'Call ended'}

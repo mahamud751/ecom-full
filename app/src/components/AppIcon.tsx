@@ -10,6 +10,8 @@ export type IconName =
   | 'search'
   | 'camera'
   | 'video'
+  | 'videoOff'
+  | 'flipCamera'
   | 'phone'
   | 'mic'
   | 'micOff'
@@ -131,6 +133,25 @@ export function AppIcon({
         <>
           <Rect {...s} fill={f} x="2.5" y="6.5" width="12.5" height="11" rx="2.5" />
           <Path {...s} fill={f} d="M15 10.5 21 7v10l-6-3.5" />
+        </>
+      );
+      break;
+    case 'videoOff':
+      body = (
+        <>
+          <Rect {...s} x="2.5" y="6.5" width="12.5" height="11" rx="2.5" />
+          <Path {...s} d="M15 10.5 21 7v10l-6-3.5" />
+          <Path {...s} d="M3 3l18 18" />
+        </>
+      );
+      break;
+    case 'flipCamera':
+      body = (
+        <>
+          <Path {...s} d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5" />
+          <Path {...s} d="M20 4v4.5h-4.5" />
+          <Path {...s} d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5" />
+          <Path {...s} d="M4 20v-4.5h4.5" />
         </>
       );
       break;

@@ -4,6 +4,12 @@ import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import type { JwtPayload } from "./jwt-auth.guard";
 
+/**
+ * A just-rotated refresh token stays usable this long so overlapping
+ * refreshes (several components / tabs on page load) don't sign the user out.
+ */
+const ROTATION_GRACE_MS = 30_000;
+
 type IssueResult = {
   accessToken: string;
   refreshToken: string;
@@ -50,7 +56,11 @@ export class TokenService {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: this.hash(refreshToken) },
     });
-    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+    const now = new Date();
+    const inGrace =
+      !!stored?.revokedAt &&
+      now.getTime() - stored.revokedAt.getTime() < ROTATION_GRACE_MS;
+    if (!stored || (stored.revokedAt && !inGrace) || stored.expiresAt < now) {
       throw new UnauthorizedException("Session expired. Please sign in again.");
     }
 
@@ -60,10 +70,12 @@ export class TokenService {
     }
 
     // Single-use rotation: revoke the presented token
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
-      data: { revokedAt: new Date() },
-    });
+    if (!stored.revokedAt) {
+      await this.prisma.refreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: now },
+      });
+    }
 
     return this.issuePair(payload);
   }
@@ -73,10 +85,12 @@ export class TokenService {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: this.hash(refreshToken) },
     });
-    if (stored && !stored.revokedAt) {
+    if (stored) {
+      const now = new Date();
+      // Expire too, so the rotation grace window never revives it
       await this.prisma.refreshToken.update({
         where: { id: stored.id },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: stored.revokedAt ?? now, expiresAt: now },
       });
     }
   }
@@ -84,8 +98,8 @@ export class TokenService {
   /** Revoke every live session for a user (e.g. on account deletion). */
   async revokeAll(userId: string, role: string): Promise<void> {
     await this.prisma.refreshToken.updateMany({
-      where: { userId, role, revokedAt: null },
-      data: { revokedAt: new Date() },
+      where: { userId, role, expiresAt: { gt: new Date() } },
+      data: { revokedAt: new Date(), expiresAt: new Date() },
     });
   }
 

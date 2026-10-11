@@ -9,6 +9,7 @@ import { http, apiErrorMessage, setAccessToken, saveRefreshToken, loadRefreshTok
 import { mmkvStorage } from "../lib/storage";
 import type { User } from "../types";
 import { unregisterFromPush } from "../lib/push";
+import { doctorSignIn, doctorSignOut } from "../api/doctorClient";
 
 type AuthState = {
   user: User | null;
@@ -37,6 +38,9 @@ export const useAuth = create<AuthState>()(
           const { user, accessToken, refreshToken } = res.data;
           setAccessToken(accessToken);
           saveRefreshToken(refreshToken);
+          // Doctor accounts also get a doctor session so this phone can
+          // ring for and join patients' calls. Not a doctor → resolves false.
+          await doctorSignIn(email, password);
           set({ user, busy: false });
           return true;
         } catch (err) {
@@ -63,6 +67,7 @@ export const useAuth = create<AuthState>()(
       logout: async () => {
         // Stop doctor calls ringing this phone for the old account.
         await unregisterFromPush();
+        await doctorSignOut();
         const refreshToken = loadRefreshToken();
         try {
           if (refreshToken) await http.post("/auth/logout", { refreshToken });

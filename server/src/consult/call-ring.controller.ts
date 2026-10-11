@@ -12,6 +12,7 @@ import { PushService } from "../push/push.service";
 import { AuthUser, JwtAuthGuard, Roles } from "../auth/jwt-auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { ApiError } from "../common/utils";
+import { DoctorRingService } from "./doctor-ring.service";
 
 /** How long the patient's phone rings before the call counts as missed. */
 const RING_SECONDS = 30;
@@ -43,6 +44,7 @@ export class CallRingController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushService,
+    private readonly doctorRing: DoctorRingService,
   ) {}
 
   private async consultation(id: string) {
@@ -179,6 +181,43 @@ export class CallRingController {
       await this.dismiss(c, c.callStateAt, "cancelled");
     }
     return { success: true };
+  }
+
+  /**
+   * Doctor's answer to a patient's call on their phone. Accept stops the
+   * ring on the doctor's other phones (the app then fetches a doctor token
+   * and joins); decline only stops the ring — the patient keeps waiting and
+   * the Doctor Portal can still take the call.
+   */
+  @Post("doctor-answer")
+  @UseGuards(JwtAuthGuard)
+  @Roles("DOCTOR")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Doctor accepts or declines a patient's call" })
+  async doctorAnswer(
+    @Param("id") id: string,
+    @Body() body: { answer?: "accept" | "decline" },
+    @CurrentUser() user: AuthUser,
+  ) {
+    const c = await this.consultation(id);
+    if (c.doctorId !== user.sub) {
+      throw new ApiError(403, "Not your consultation");
+    }
+    if (["CANCELLED", "COMPLETED"].includes(c.status)) {
+      throw new ApiError(409, "Consultation has ended");
+    }
+    await this.doctorRing.stop(
+      c.id,
+      body?.answer === "accept" ? "accepted" : "declined",
+    );
+    return {
+      success: true,
+      consultation: {
+        id: c.id,
+        channel: c.channelName,
+        mode: c.type === "AUDIO" ? "AUDIO" : "VIDEO",
+      },
+    };
   }
 
   /**

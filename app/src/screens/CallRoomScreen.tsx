@@ -1,11 +1,14 @@
 /**
  * Agora call room (react-native-agora v4).
- * Patient joins the consult channel with the stable uid (2001) issued by
- * POST /agora/token. Video or audio depending on the consult type.
+ * Joins the consult channel with the stable uid issued by POST /agora/token:
+ * 2001 as the patient, 1001 as the doctor (a patient's call answered on the
+ * doctor's phone). Video or audio depending on the consult type.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -20,6 +23,7 @@ import {
   type IRtcEngine,
 } from 'react-native-agora';
 import { http, apiErrorMessage } from '../api/client';
+import { doctorHttp, hasDoctorSession } from '../api/doctorClient';
 import { setCallOverLockScreen } from '../lib/lockScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
@@ -36,18 +40,39 @@ type TokenData = {
   uid: number;
   consultType: 'VIDEO' | 'AUDIO';
   doctorName: string;
+  patientName: string;
 };
+
+/**
+ * Android only grants the camera / microphone after a runtime prompt;
+ * without it Agora joins but sends no picture or sound.
+ */
+async function grantMedia(video: boolean): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  const wanted = [
+    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    ...(video ? [PermissionsAndroid.PERMISSIONS.CAMERA] : []),
+  ];
+  const result = await PermissionsAndroid.requestMultiple(wanted);
+  return wanted.every(p => result[p] === PermissionsAndroid.RESULTS.GRANTED);
+}
 
 export function CallRoomScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const { consultationId, mode } = route.params;
+  const { consultationId, mode, role = 'patient' } = route.params;
+  const asDoctor = role === 'doctor';
+  const client = asDoctor ? doctorHttp : http;
   const engineRef = useRef<IRtcEngine | null>(null);
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
+  // Video views bind to the engine when they mount, so they may only
+  // mount once it is initialized (else the picture stays black).
+  const [engineReady, setEngineReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('Connecting…');
   const [remoteUid, setRemoteUid] = useState<number | undefined>(undefined);
   const [, setJoined] = useState(false);
   const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
 
   // A call answered on a locked phone stays visible over the lock screen
   // until it ends; then the phone is locked again.
@@ -62,13 +87,31 @@ export function CallRoomScreen({ navigation, route }: Props) {
 
     async function start() {
       try {
-        const res = await http.post('/agora/token', {
+        if (asDoctor && !hasDoctorSession()) {
+          setError(
+            'To take patient calls on this phone, sign out and sign in again with your doctor account.',
+          );
+          return;
+        }
+        const res = await client.post('/agora/token', {
           consultationId,
-          role: 'patient',
+          role,
         });
         const data = res.data as TokenData;
         if (cancelled) return;
+
+        const video = data.consultType !== 'AUDIO';
+        if (!(await grantMedia(video))) {
+          setError(
+            video
+              ? 'Allow camera and microphone access for Ahona in Settings to join the call.'
+              : 'Allow microphone access for Ahona in Settings to join the call.',
+          );
+          return;
+        }
+        if (cancelled) return;
         setTokenData(data);
+        const peer = asDoctor ? data.patientName || 'the patient' : data.doctorName;
 
         engine = createAgoraRtcEngine();
         engineRef.current = engine;
@@ -80,22 +123,28 @@ export function CallRoomScreen({ navigation, route }: Props) {
         engine.registerEventHandler({
           onJoinChannelSuccess: () => {
             setJoined(true);
-            setStatus('Connected — waiting for the doctor');
+            setStatus(
+              asDoctor
+                ? 'Connected — waiting for the patient'
+                : 'Connected — waiting for the doctor',
+            );
           },
           onUserJoined: (_conn, uid) => {
             setRemoteUid(uid);
-            setStatus(`In call with ${data.doctorName}`);
+            setStatus(`In call with ${peer}`);
           },
           onUserOffline: () => {
             setRemoteUid(undefined);
-            setStatus('Doctor left the call');
+            setStatus(asDoctor ? 'Patient left the call' : 'Doctor left the call');
           },
           onError: err => {
             setStatus(`Call error (${err})`);
           },
         });
 
-        if (data.consultType !== 'AUDIO') {
+        // Video calls on the loudspeaker; voice calls at the ear.
+        engine.setDefaultAudioRouteToSpeakerphone(video);
+        if (video) {
           engine.enableVideo();
           engine.setupLocalVideo({
             sourceType: VideoSourceType.VideoSourceCameraPrimary,
@@ -108,6 +157,7 @@ export function CallRoomScreen({ navigation, route }: Props) {
         engine.joinChannel(data.token, data.channelName, data.uid, {
           clientRoleType: ClientRoleType.ClientRoleBroadcaster,
         });
+        if (!cancelled) setEngineReady(true);
       } catch (err) {
         if (!cancelled)
           setError(apiErrorMessage(err, 'Could not start the call'));
@@ -125,8 +175,9 @@ export function CallRoomScreen({ navigation, route }: Props) {
         /* engine may already be torn down */
       }
       engineRef.current = null;
+      setEngineReady(false);
     };
-  }, [consultationId]);
+  }, [consultationId, role, asDoctor, client]);
 
   function toggleMic() {
     const next = !micOn;
@@ -134,8 +185,19 @@ export function CallRoomScreen({ navigation, route }: Props) {
     engineRef.current?.muteLocalAudioStream(!next);
   }
 
+  function toggleCam() {
+    const next = !camOn;
+    setCamOn(next);
+    engineRef.current?.muteLocalVideoStream(!next);
+    engineRef.current?.enableLocalVideo(next);
+  }
+
+  function flipCamera() {
+    engineRef.current?.switchCamera();
+  }
+
   function endCall() {
-    void http
+    void client
       .patch(`/consultations/${consultationId}`, { action: 'end' })
       .catch(() => undefined);
     navigation.goBack();
@@ -157,7 +219,7 @@ export function CallRoomScreen({ navigation, route }: Props) {
   return (
     <View style={styles.root}>
       {isVideo ? (
-        remoteUid !== undefined ? (
+        engineReady && remoteUid !== undefined ? (
           <RtcSurfaceView canvas={{ uid: remoteUid }} style={styles.remote} />
         ) : (
           <View style={[styles.remote, styles.waiting]}>
@@ -181,7 +243,15 @@ export function CallRoomScreen({ navigation, route }: Props) {
 
       {isVideo ? (
         <View style={styles.localWrap}>
-          <RtcSurfaceView canvas={{ uid: 0 }} style={styles.local} />
+          {engineReady && camOn ? (
+            <RtcSurfaceView canvas={{ uid: 0 }} style={styles.local} />
+          ) : (
+            <View style={[styles.local, styles.camOff]}>
+              {camOn ? null : (
+                <AppIcon name="videoOff" color={colors.white} size={26} />
+              )}
+            </View>
+          )}
         </View>
       ) : null}
 
@@ -200,6 +270,34 @@ export function CallRoomScreen({ navigation, route }: Props) {
           </Pressable>
           <Text style={styles.ctlLabel}>{micOn ? 'Mute' : 'Unmute'}</Text>
         </View>
+        {isVideo ? (
+          <View style={styles.ctlItem}>
+            <Pressable
+              style={[styles.ctlBtn, !camOn && styles.ctlBtnOff]}
+              onPress={toggleCam}
+              accessibilityLabel={camOn ? 'Turn camera off' : 'Turn camera on'}
+            >
+              <AppIcon
+                name={camOn ? 'video' : 'videoOff'}
+                color={camOn ? colors.white : colors.forestDeep}
+                size={26}
+              />
+            </Pressable>
+            <Text style={styles.ctlLabel}>{camOn ? 'Camera' : 'Camera off'}</Text>
+          </View>
+        ) : null}
+        {isVideo && camOn ? (
+          <View style={styles.ctlItem}>
+            <Pressable
+              style={styles.ctlBtn}
+              onPress={flipCamera}
+              accessibilityLabel="Switch camera"
+            >
+              <AppIcon name="flipCamera" color={colors.white} size={26} />
+            </Pressable>
+            <Text style={styles.ctlLabel}>Flip</Text>
+          </View>
+        ) : null}
         <View style={styles.ctlItem}>
           <Pressable style={styles.endBtn} onPress={endCall} accessibilityLabel="End call">
             <View style={{ transform: [{ rotate: '135deg' }] }}>
@@ -249,13 +347,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.35)',
   },
   local: { width: '100%', height: '100%' },
+  camOff: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   controls: {
     position: 'absolute',
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 40,
+    gap: 22,
   },
   ctlItem: { alignItems: 'center', gap: 8 },
   ctlLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600' },

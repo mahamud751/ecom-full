@@ -15,6 +15,7 @@ import { pageParams } from "../common/pagination";
 import { AuthUser, JwtAuthGuard, OptionalAuth } from "../auth/jwt-auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { makeChannelName } from "./agora";
+import { DoctorRingService } from "./doctor-ring.service";
 import type { ScheduleRow } from "../doctors/schedule";
 
 type ConsultStatus =
@@ -23,7 +24,10 @@ type ConsultStatus =
 @ApiTags("consultations")
 @Controller("consultations")
 export class ConsultationsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly doctorRing: DoctorRingService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: "List consultations by patient phone or doctorId" })
@@ -366,6 +370,14 @@ export class ConsultationsController {
           },
         },
       });
+
+      // Joined on the portal → stop the doctor's phones ringing; ended or
+      // cancelled before the doctor answered → the patient hung up.
+      if (action === "start" || action === "join") {
+        void this.doctorRing.stop(updated.id, "accepted").catch(() => {});
+      } else if (["complete", "end", "cancel"].includes(action ?? "")) {
+        void this.doctorRing.stop(updated.id, "cancelled").catch(() => {});
+      }
 
       return { success: true, consultation: updated };
     } catch (err) {

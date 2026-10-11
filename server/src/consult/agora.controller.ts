@@ -5,11 +5,15 @@ import { ApiError } from "../common/utils";
 import { buildRtcToken } from "./agora";
 import { AuthUser, JwtAuthGuard, OptionalAuth } from "../auth/jwt-auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { DoctorRingService } from "./doctor-ring.service";
 
 @ApiTags("agora")
 @Controller("agora")
 export class AgoraController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly doctorRing: DoctorRingService,
+  ) {}
 
   @Post("token")
   @UseGuards(JwtAuthGuard)
@@ -55,6 +59,16 @@ export class AgoraController {
 
       if (["CANCELLED", "COMPLETED"].includes(consultation.status)) {
         throw new ApiError(409, "Consultation has ended");
+      }
+
+      // Doctor joining (phone or portal) ends the ring on the doctor's phones;
+      // a patient entering before the doctor rings them.
+      if (role === "doctor") {
+        void this.doctorRing.stop(consultation.id, "accepted").catch(() => {});
+      } else if (["PENDING", "CONFIRMED"].includes(consultation.status)) {
+        void this.doctorRing.ring(consultation).catch((e) =>
+          console.error("Doctor ring error:", e),
+        );
       }
 
       // Stable numeric UIDs per role — must match client join()

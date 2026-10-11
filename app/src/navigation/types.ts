@@ -34,12 +34,15 @@ export type RootParamList = {
     consultationId: string;
     channel: string;
     mode: 'VIDEO' | 'AUDIO';
+    /** Joining as the doctor (patient call answered on a doctor's phone). */
+    role?: 'patient' | 'doctor';
   };
   IncomingCall: {
     consultId: string;
     ringId: string;
-    doctorName: string;
-    doctorImage: string;
+    role: 'patient' | 'doctor';
+    callerName: string;
+    callerImage: string;
     channel: string;
     mode: 'VIDEO' | 'AUDIO';
     expiresAt: number;
