@@ -4,7 +4,9 @@
  *
  * From server/: npx tsx scripts/import-beauty.ts
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { isShopperEnglish } from "../src/catalog/shopper-english";
 import { BOT_UA, saveRemoteImage } from "./catalog-media";
 
 const prisma = new PrismaClient();
@@ -72,7 +74,12 @@ const CATEGORIES = [
   "en:feminine-hygiene",
   "en:baby-cosmetics",
   "en:toothpastes",
+  "en:homeopathy",
+  "en:sanitary-towels",
+  "en:intimate-hygiene",
 ];
+
+const COUNTRIES = ["bangladesh", "india", "pakistan", "united-kingdom"];
 
 type ObfProduct = {
   code?: string;
@@ -104,6 +111,7 @@ function slugify(text: string, max = 70): string {
 
 function mapCategory(tags: string[], name: string): string {
   const t = `${tags.join(" ")} ${name}`.toLowerCase();
+  if (/(homeopath|arnica|nux-vomica|calendula-officinalis)/.test(t)) return "homeopathy";
   if (/(condom|lubricant|intimate|durex)/.test(t)) return "sexual-wellness";
   if (/(sanitary|tampon|panty-liner|menstrual|feminine|pad)/.test(t))
     return "feminine-care";
@@ -177,6 +185,7 @@ async function main() {
   await ensureCategory("supplement", "Supplement", catCache);
   await ensureCategory("feminine-care", "Feminine Care", catCache);
   await ensureCategory("sexual-wellness", "Sexual Wellness", catCache);
+  await ensureCategory("homeopathy", "Homeopathy", catCache);
 
   const brandIdByName = new Map<string, string>();
   for (const b of await prisma.brand.findMany({ select: { id: true, name: true, slug: true } })) {
@@ -199,11 +208,12 @@ async function main() {
   const jobs: { key: string; params: Record<string, string> }[] = [
     ...BRANDS.map((brand) => ({ key: brand, params: { brands_tags: brand } })),
     ...CATEGORIES.map((cat) => ({ key: cat, params: { categories_tags: cat } })),
+    ...COUNTRIES.map((c) => ({ key: c, params: { countries_tags: `en:${c}` } })),
   ];
 
   for (const job of jobs) {
     const seen = new Set<string>();
-    for (const page of [1, 2]) {
+    for (const page of [1, 2, 3]) {
       let rows: ObfProduct[] = [];
       try {
         rows = await fetchPage({ ...job.params, page: String(page) });
@@ -218,8 +228,9 @@ async function main() {
         const remote = row.image_front_url || row.image_url || "";
         if (
           !code ||
-          name.length < 14 ||
+          name.length < 10 ||
           !name.includes(" ") ||
+          !isShopperEnglish(name) ||
           !remote.startsWith("http")
         ) {
           skipped++;

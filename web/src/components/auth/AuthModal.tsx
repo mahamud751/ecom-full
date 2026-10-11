@@ -22,6 +22,11 @@ export function AuthModal() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  /** Cross-realm hint: doctor accounts must use the doctor portal */
+  const [portalHint, setPortalHint] = useState<{
+    href: string;
+    label: string;
+  } | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -34,6 +39,7 @@ export function AuthModal() {
     if (authOpen) {
       setTab(authTab);
       setError("");
+      setPortalHint(null);
     }
   }, [authOpen, authTab]);
 
@@ -98,7 +104,37 @@ export function AuthModal() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Sign in failed");
+        if (!res.ok) {
+          if (data.code === "DOCTOR_ACCOUNT") {
+            // Doctor account at the shop sign-in: authenticate against the
+            // doctor realm with the same credentials and hand off to the
+            // doctor portal, which restores the session from its cookie.
+            const doctorRes = await fetch("/api/auth-proxy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                kind: "doctor",
+                action: "login",
+                payload: { email: form.email, password: form.password },
+              }),
+            });
+            const doctorData = await doctorRes.json();
+            if (doctorRes.ok) {
+              setAccessToken("doctor", doctorData.accessToken || null);
+              setAuthOpen(false);
+              window.location.href = "/doctor-portal";
+              return;
+            }
+            // Wrong doctor password etc. — fall back to the portal link.
+            setPortalHint({
+              href: `/doctor-portal?email=${encodeURIComponent(form.email)}`,
+              label: "Open the Doctor Portal",
+            });
+            throw new Error(doctorData.error || data.error || "Sign in failed");
+          }
+          throw new Error(data.error || "Sign in failed");
+        }
         setAccessToken("customer", data.accessToken || null);
         setUser(data.user);
         setAuthOpen(false);
@@ -161,6 +197,7 @@ export function AuthModal() {
               onClick={() => {
                 setTab(id);
                 setError("");
+                setPortalHint(null);
               }}
               className={cn(
                 "relative flex-1 py-3 text-sm font-bold transition",
@@ -282,6 +319,15 @@ export function AuthModal() {
             <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {error}
             </p>
+          )}
+
+          {portalHint && (
+            <a
+              href={portalHint.href}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--forest)] py-3 text-sm font-bold text-[var(--forest-deep)] transition hover:bg-[var(--forest)]/5"
+            >
+              {portalHint.label} →
+            </a>
           )}
 
           <button

@@ -26,6 +26,22 @@ function cookieName(kind: string) {
   return `htp_refresh_${kind}`;
 }
 
+/**
+ * NestJS error responses look like { message, error, statusCode } where
+ * `error` is just the HTTP status text (e.g. "Unauthorized") and `message`
+ * carries the real reason. Prefer `message` so the UI never shows a bare
+ * "Unauthorized" for a credential problem.
+ */
+function errorMessage(
+  data: Record<string, unknown>,
+  fallback: string,
+): string {
+  const msg = data.message ?? data.error;
+  if (Array.isArray(msg)) return msg.join(", ");
+  if (typeof msg === "string" && msg.trim()) return msg;
+  return fallback;
+}
+
 function setRefreshCookie(res: NextResponse, kind: string, token: string) {
   res.cookies.set(cookieName(kind), token, {
     httpOnly: true,
@@ -54,6 +70,11 @@ async function nest(
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      // Tells the backend this call comes from the web storefront (the live
+      // mobile app calls the API directly without this header). Used to keep
+      // doctor emails routed to the Doctor Portal on web while the app signs
+      // doctors in through the same login endpoint.
+      "X-Ahona-Client": "web",
       ...(init.headers || {}),
     },
   });
@@ -92,7 +113,10 @@ export async function POST(req: NextRequest) {
     });
     if (!res.ok) {
       return NextResponse.json(
-        { error: (res.data.error as string) || "Authentication failed" },
+        {
+          error: errorMessage(res.data, "Authentication failed"),
+          ...(res.data.code ? { code: res.data.code } : {}),
+        },
         { status: res.status },
       );
     }
@@ -116,7 +140,7 @@ export async function POST(req: NextRequest) {
     });
     if (!res.ok) {
       const out = NextResponse.json(
-        { error: (res.data.error as string) || "Session expired" },
+        { error: errorMessage(res.data, "Session expired") },
         { status: 401 },
       );
       clearRefreshCookie(out, kind);

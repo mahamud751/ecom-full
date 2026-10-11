@@ -102,6 +102,13 @@ export default function DoctorPortalPage() {
     showRxRef.current = showRx;
   }, [showRx]);
 
+  // Prefill the email when arriving from the shop sign-in modal, which
+  // detects doctor accounts and links here with ?email=.
+  useEffect(() => {
+    const email = new URLSearchParams(window.location.search).get("email");
+    if (email) setLoginForm((f) => ({ ...f, email }));
+  }, []);
+
   const loadMe = useCallback(async () => {
     try {
       const res = await fetch("/api/auth-proxy", {
@@ -318,7 +325,31 @@ export default function DoctorPortalPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Login failed");
+      if (!res.ok) {
+        if (data.code === "CUSTOMER_ACCOUNT") {
+          // Customer account at the doctor portal: sign in on the shop
+          // realm with the same credentials and send them to the store,
+          // where the customer session is restored from its cookie.
+          const customerRes = await fetch("/api/auth-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              kind: "customer",
+              action: "login",
+              payload: loginForm,
+            }),
+          });
+          const customerData = await customerRes.json();
+          if (customerRes.ok) {
+            setAccessToken("customer", customerData.accessToken || null);
+            window.location.href = "/";
+            return;
+          }
+          throw new Error(customerData.error || data.error || "Login failed");
+        }
+        throw new Error(data.error || "Login failed");
+      }
       setAccessToken("doctor", data.accessToken || null);
       await loadMe();
     } catch (err) {

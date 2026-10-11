@@ -2,6 +2,7 @@
  * Convert medicine pack SVGs to JPEG so web + the mobile app can display them.
  * From server/: npx tsx scripts/rasterize-pack-images.ts
  */
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";

@@ -1,4 +1,5 @@
 /** Unique pharmacy pack SVG for each medicine SKU. */
+import { FONT_BOLD, FONT_REG, packFontFace } from "./pack-font";
 
 export type PackInput = {
   sku: string;
@@ -95,17 +96,18 @@ export function medicinePackSvg(input: PackInput): string {
   const rx = input.requiresRx;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 640 640">
+  ${packFontFace()}
   <rect width="640" height="640" fill="${bg}"/>
   <circle cx="520" cy="90" r="120" fill="${accent}" opacity=".12"/>
   <circle cx="80" cy="560" r="140" fill="${ink}" opacity=".08"/>
   ${artwork(form, accent, ink)}
   <rect x="40" y="488" width="560" height="116" rx="20" fill="#fff" opacity=".92"/>
-  <text x="320" y="528" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="28" font-weight="800" fill="${ink}">${xml(l1)}</text>
-  ${l2 ? `<text x="320" y="558" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700" fill="${accent}">${xml(l2)}</text>` : ""}
-  <text x="320" y="${l2 ? 584 : 562}" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" fill="#445">${xml([strength, form].filter(Boolean).join(" · "))}</text>
-  ${maker ? `<text x="320" y="606" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" fill="#778">${xml(maker)}</text>` : ""}
+  <text x="320" y="528" text-anchor="middle" font-family="${FONT_BOLD}" font-size="28" font-weight="700" fill="${ink}">${xml(l1)}</text>
+  ${l2 ? `<text x="320" y="558" text-anchor="middle" font-family="${FONT_BOLD}" font-size="22" font-weight="700" fill="${accent}">${xml(l2)}</text>` : ""}
+  <text x="320" y="${l2 ? 584 : 562}" text-anchor="middle" font-family="${FONT_REG}" font-size="16" fill="#445">${xml([strength, form].filter(Boolean).join(" · "))}</text>
+  ${maker ? `<text x="320" y="606" text-anchor="middle" font-family="${FONT_REG}" font-size="12" fill="#778">${xml(maker)}</text>` : ""}
   <rect x="24" y="24" width="${rx ? 86 : 70}" height="28" rx="8" fill="${rx ? "#9B2C2C" : "#1F6B5A"}"/>
-  <text x="${rx ? 67 : 59}" y="43" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="700" fill="#fff">${rx ? "Rx" : "OTC"}</text>
+  <text x="${rx ? 67 : 59}" y="43" text-anchor="middle" font-family="${FONT_BOLD}" font-size="12" font-weight="700" fill="#fff">${rx ? "Rx" : "OTC"}</text>
 </svg>`;
 }
 
@@ -151,15 +153,16 @@ export function devicePackSvg(input: {
   const maker = (input.manufacturer || "").slice(0, 28);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 640 640">
+  ${packFontFace()}
   <rect width="640" height="640" fill="${bg}"/>
   <circle cx="520" cy="90" r="120" fill="${accent}" opacity=".12"/>
   <circle cx="80" cy="560" r="140" fill="${ink}" opacity=".08"/>
   ${deviceArtwork(kind, accent, ink)}
   <rect x="40" y="488" width="560" height="116" rx="20" fill="#fff" opacity=".92"/>
-  <text x="320" y="528" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="26" font-weight="800" fill="${ink}">${xml(l1)}</text>
-  ${l2 ? `<text x="320" y="558" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="700" fill="${accent}">${xml(l2)}</text>` : ""}
-  ${maker ? `<text x="320" y="${l2 ? 586 : 562}" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" fill="#667">${xml(maker)}</text>` : ""}
+  <text x="320" y="528" text-anchor="middle" font-family="${FONT_BOLD}" font-size="26" font-weight="700" fill="${ink}">${xml(l1)}</text>
+  ${l2 ? `<text x="320" y="558" text-anchor="middle" font-family="${FONT_BOLD}" font-size="20" font-weight="700" fill="${accent}">${xml(l2)}</text>` : ""}
+  ${maker ? `<text x="320" y="${l2 ? 586 : 562}" text-anchor="middle" font-family="${FONT_REG}" font-size="14" fill="#667">${xml(maker)}</text>` : ""}
   <rect x="24" y="24" width="86" height="28" rx="8" fill="#1F6B5A"/>
-  <text x="67" y="43" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="700" fill="#fff">DEVICE</text>
+  <text x="67" y="43" text-anchor="middle" font-family="${FONT_BOLD}" font-size="12" font-weight="700" fill="#fff">DEVICE</text>
 </svg>`;
 }

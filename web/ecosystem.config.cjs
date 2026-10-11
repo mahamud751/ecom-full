@@ -26,12 +26,12 @@ module.exports = {
   apps: [
     {
       name: "ahona-ecom-web",
-      cwd: "/var/www/ecom-web",
+      cwd: __dirname,
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3080",
+      args: "start -p 3081",
       env: {
         NODE_ENV: "production",
-        PORT: 3080,
+        PORT: 3081,
         ...fileEnv,
       },
       instances: 1,

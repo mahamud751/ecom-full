@@ -4,6 +4,7 @@
  *
  * From server/: npx tsx scripts/mirror-open-images.ts
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { saveRemoteImage } from "./catalog-media";
 

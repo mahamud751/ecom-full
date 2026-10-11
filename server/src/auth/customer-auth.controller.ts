@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Patch,
   Post,
   Query,
@@ -34,8 +35,11 @@ export class CustomerAuthController {
 
   @Post("login")
   @ApiOperation({ summary: "Login, returns JWT access + refresh tokens" })
-  login(@Body() body: { email: string; password: string }) {
-    return this.auth.login(body.email, body.password);
+  login(
+    @Body() body: { email: string; password: string },
+    @Headers("x-ahona-client") client?: string,
+  ) {
+    return this.auth.login(body.email, body.password, client);
   }
 
   @Post("refresh")

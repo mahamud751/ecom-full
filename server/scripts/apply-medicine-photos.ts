@@ -4,11 +4,35 @@
  *
  * From server/: npx tsx scripts/apply-medicine-photos.ts
  */
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { PrismaClient } from "@prisma/client";
 import { detectForm } from "../src/catalog/pack-art";
+import { FONT_BOLD, FONT_REG, packFontFace } from "../src/catalog/pack-font";
+import { prepareFormPhotos } from "./prepare-media";
+
+const PALETTES = [
+  "#1F6B5A",
+  "#2B5F8B",
+  "#8B3A5A",
+  "#4F7A2E",
+  "#B07A2A",
+  "#4A3A8B",
+  "#B04A2A",
+  "#2A7A72",
+  "#7A2A5A",
+  "#3A5A7A",
+  "#8B6A2A",
+  "#2E7A4A",
+];
+
+function skuColor(sku: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < sku.length; i++) h = Math.imul(h ^ sku.charCodeAt(i), 16777619);
+  return PALETTES[(h >>> 0) % PALETTES.length];
+}
 
 const prisma = new PrismaClient();
 const FORMS = path.join(process.cwd(), "uploads", "forms");
@@ -49,18 +73,24 @@ function labelSvg(opts: {
   form: string;
   maker: string;
   rx: boolean;
+  accent: string;
 }): Buffer {
   const [l1, l2] = wrap(opts.name, 24);
   const meta = [opts.strength, opts.form].filter(Boolean).join(" · ");
   return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="640">
-  <rect x="28" y="492" width="584" height="120" rx="20" fill="#ffffff" fill-opacity="0.96"/>
-  <text x="320" y="528" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#14201f">${xml(l1)}</text>
-  ${l2 ? `<text x="320" y="554" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#164f4a">${xml(l2)}</text>` : ""}
-  <text x="320" y="${l2 ? 578 : 558}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#5c6b69">${xml(meta)}</text>
-  ${opts.maker ? `<text x="320" y="598" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#8a9694">${xml(opts.maker.slice(0, 36))}</text>` : ""}
-  <rect x="24" y="24" width="${opts.rx ? 52 : 48}" height="26" rx="8" fill="${opts.rx ? "#9B2C2C" : "#1F6B5A"}"/>
-  <text x="${opts.rx ? 50 : 48}" y="42" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#fff">${opts.rx ? "Rx" : "OTC"}</text>
+  ${packFontFace()}
+  <rect x="0" y="0" width="640" height="16" fill="${opts.accent}"/>
+  <rect x="0" y="624" width="640" height="16" fill="${opts.accent}"/>
+  <rect x="0" y="0" width="16" height="640" fill="${opts.accent}"/>
+  <rect x="624" y="0" width="16" height="640" fill="${opts.accent}"/>
+  <rect x="28" y="488" width="584" height="124" rx="20" fill="#ffffff" fill-opacity="0.97"/>
+  <text x="320" y="526" text-anchor="middle" font-family="${FONT_BOLD}" font-size="22" font-weight="700" fill="#14201f">${xml(l1)}</text>
+  ${l2 ? `<text x="320" y="552" text-anchor="middle" font-family="${FONT_BOLD}" font-size="18" font-weight="700" fill="#164f4a">${xml(l2)}</text>` : ""}
+  <text x="320" y="${l2 ? 576 : 556}" text-anchor="middle" font-family="${FONT_REG}" font-size="14" fill="#5c6b69">${xml(meta)}</text>
+  ${opts.maker ? `<text x="320" y="${l2 ? 598 : 580}" text-anchor="middle" font-family="${FONT_REG}" font-size="12" fill="#6d7a78">${xml(opts.maker.slice(0, 36))}</text>` : ""}
+  <rect x="24" y="24" width="${opts.rx ? 52 : 48}" height="26" rx="8" fill="${opts.rx ? "#9B2C2C" : opts.accent}"/>
+  <text x="${opts.rx ? 50 : 48}" y="42" text-anchor="middle" font-family="${FONT_BOLD}" font-size="12" font-weight="700" fill="#fff">${opts.rx ? "Rx" : "OTC"}</text>
 </svg>`);
 }
 
@@ -104,6 +134,7 @@ async function makeHero() {
 
 async function main() {
   fs.mkdirSync(PACKS, { recursive: true });
+  await prepareFormPhotos();
   await makeHero();
 
   const buffers = new Map<string, Buffer>();
@@ -144,6 +175,7 @@ async function main() {
         form,
         maker: p.brand?.name || "",
         rx: p.requiresRx,
+        accent: skuColor(p.sku || p.name),
       }),
     )
       .png()
@@ -151,19 +183,30 @@ async function main() {
     await sharp(base)
       .composite([{ input: overlay }])
       .jpeg({ quality: 84 })
-      .toFile(path.join(PACKS, `${p.sku}.jpg`));
+      .toFile(path.join(PACKS, `${p.sku}.v2.jpg`));
     done++;
     if (done % 2000 === 0) console.log(`Wrote ${done}/${products.length}…`);
   });
+
+  const updated = await prisma.$executeRawUnsafe(`
+    UPDATE "Product"
+    SET image = '/uploads/packs/' || sku || '.v2.jpg',
+        images = ARRAY['/uploads/packs/' || sku || '.v2.jpg']
+    WHERE "isMedicine" = true
+      AND sku IS NOT NULL
+      AND sku LIKE 'BD-%'
+  `);
+  console.log(`DB image paths updated=${updated}`);
 
   for (const [form, file] of Object.entries(FORM_FILE)) {
     const formPath = `/uploads/forms/${file}`;
     await prisma.$executeRawUnsafe(
       `
       UPDATE "Product"
-      SET images = ARRAY['/uploads/packs/' || sku || '.jpg', $1]
+      SET images = ARRAY['/uploads/packs/' || sku || '.v2.jpg', $1]
       WHERE "isMedicine" = true
         AND sku IS NOT NULL
+        AND sku LIKE 'BD-%'
         AND (
           CASE
             WHEN $2 = 'Syrup' THEN (name ILIKE '%syrup%' OR name ILIKE '%suspension%' OR name ILIKE '%elixir%' OR name ILIKE '%solution%')

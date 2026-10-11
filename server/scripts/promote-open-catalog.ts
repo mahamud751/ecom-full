@@ -2,7 +2,9 @@
  * Put real pack-photo SKUs on the homepage (featured / flash / Himalaya).
  * From server/: npx tsx scripts/promote-open-catalog.ts
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { isShopperEnglish } from "../src/catalog/shopper-english";
 
 const prisma = new PrismaClient();
 
@@ -12,18 +14,20 @@ async function main() {
     data: { isFeatured: false, isFlashSale: false },
   });
 
-  const beauty = await prisma.product.findMany({
+  const beautyRows = await prisma.product.findMany({
     where: { sku: { startsWith: "OBF-" }, isActive: true, image: { startsWith: "/uploads/" } },
-    orderBy: { reviewCount: "desc" },
-    take: 24,
-    select: { id: true },
+    orderBy: [{ rating: "desc" }, { name: "asc" }],
+    take: 40,
+    select: { id: true, name: true },
   });
-  const food = await prisma.product.findMany({
+  const foodRows = await prisma.product.findMany({
     where: { sku: { startsWith: "OFF-" }, isActive: true, image: { startsWith: "/uploads/" } },
-    orderBy: { reviewCount: "desc" },
-    take: 12,
-    select: { id: true },
+    orderBy: [{ rating: "desc" }, { name: "asc" }],
+    take: 24,
+    select: { id: true, name: true },
   });
+  const beauty = beautyRows.filter((p) => isShopperEnglish(p.name));
+  const food = foodRows.filter((p) => isShopperEnglish(p.name));
   const devices = await prisma.product.findMany({
     where: { sku: { startsWith: "DEV-" }, isActive: true },
     take: 8,

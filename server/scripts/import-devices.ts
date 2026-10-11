@@ -4,6 +4,7 @@
  *
  * From server/: npx tsx scripts/import-devices.ts
  */
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";

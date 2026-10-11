@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Sparkles, ArrowRight } from "lucide-react";
@@ -8,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { TrustBar } from "@/components/layout/TrustBar";
+import { CatalogImage } from "@/components/product/CatalogImage";
 
 export type BannerData = {
   id: string;
@@ -121,7 +121,7 @@ export function HeroCarousel({ banners }: { banners: BannerData[] }) {
                   )}
                   aria-hidden={!active}
                 >
-                  <Image
+                  <CatalogImage
                     src={banner.image}
                     alt={banner.title}
                     fill

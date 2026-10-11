@@ -11,6 +11,7 @@
  *   npx tsx scripts/import-medicines.ts
  *   npx tsx scripts/import-medicines.ts --limit 500   # smoke test
  */
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";

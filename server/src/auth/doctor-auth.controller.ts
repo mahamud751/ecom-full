@@ -36,10 +36,23 @@ export class DoctorAuthService {
   }
 
   async login(email: string, password: string) {
+    const normalized = (email || "").trim().toLowerCase();
     const doctor = await this.prisma.doctor.findUnique({
-      where: { email: (email || "").trim().toLowerCase() },
+      where: { email: normalized },
     });
     if (!doctor || !doctor.isActive || !doctor.password) {
+      // Cross-realm guidance: a shop customer account cannot sign in here.
+      const customer = await this.prisma.customer.findUnique({
+        where: { email: normalized },
+        select: { id: true },
+      });
+      if (customer) {
+        throw new UnauthorizedException({
+          message:
+            "This email belongs to a customer account. Please sign in from the store, not the Doctor Portal.",
+          code: "CUSTOMER_ACCOUNT",
+        });
+      }
       throw new UnauthorizedException("Invalid credentials");
     }
     const ok = await verifyPassword(password || "", doctor.password);

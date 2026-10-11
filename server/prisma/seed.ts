@@ -1,5 +1,7 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { localizeUrl, prepareMedia } from "../scripts/prepare-media";
 
 const prisma = new PrismaClient();
 
@@ -61,6 +63,15 @@ const img = {
 };
 
 async function main() {
+  await prepareMedia();
+  const imgKeys = Object.keys(img) as Array<keyof typeof img>;
+  for (const key of imgKeys) {
+    const value = img[key];
+    if (value.startsWith("http")) {
+      img[key] = await localizeUrl(value, "catalog", String(key));
+    }
+  }
+
   await prisma.prescriptionItem.deleteMany();
   await prisma.prescription.deleteMany();
   await prisma.consultation.deleteMany();

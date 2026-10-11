@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import type { Customer } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -116,6 +118,18 @@ export class CustomerAuthService {
       throw new ConflictException("An account with this email already exists");
     }
 
+    // Doctor emails belong to the doctor realm — registering one here would
+    // split the account (login bridges doctor credentials to a linked row).
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (doctor) {
+      throw new BadRequestException(
+        "This email belongs to a doctor account. Please sign in instead.",
+      );
+    }
+
     const customer = await this.prisma.customer.create({
       data: {
         email,
@@ -130,18 +144,7 @@ export class CustomerAuthService {
     return { success: true, user: toPublicUser(customer), ...pair };
   }
 
-  async login(email: string, password: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { email: (email || "").trim().toLowerCase() },
-    });
-    if (!customer || !customer.isActive) {
-      throw new UnauthorizedException("Invalid email or password");
-    }
-    const ok = await verifyPassword(password || "", customer.password);
-    if (!ok) {
-      throw new UnauthorizedException("Invalid email or password");
-    }
-
+  private async completeLogin(customer: Customer) {
     const updated = await this.prisma.customer.update({
       where: { id: customer.id },
       data: { lastLoginAt: new Date() },
@@ -149,6 +152,72 @@ export class CustomerAuthService {
 
     const pair = await this.tokens.issuePair(this.payloadFor(updated));
     return { success: true, user: toPublicUser(updated), ...pair };
+  }
+
+  async login(email: string, password: string, client?: string) {
+    const normalized = (email || "").trim().toLowerCase();
+
+    // The web storefront always routes doctor accounts to the Doctor Portal
+    // (its auth proxy marks itself with client === "web"). Checked before the
+    // customer lookup so an app-created linked customer row cannot shadow it.
+    if (client === "web") {
+      const doctor = await this.prisma.doctor.findUnique({
+        where: { email: normalized },
+        select: { id: true },
+      });
+      if (doctor) {
+        throw new ForbiddenException({
+          message:
+            "This email belongs to a doctor account. Please sign in from the Doctor Portal.",
+          code: "DOCTOR_ACCOUNT",
+        });
+      }
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { email: normalized },
+    });
+    if (customer && customer.isActive) {
+      const ok = await verifyPassword(password || "", customer.password);
+      if (ok) return this.completeLogin(customer);
+    }
+
+    // Doctor credentials on this patient-login endpoint: the live mobile app
+    // (already on the Play Store) signs doctors in here, so doctor accounts
+    // mint a customer-realm session backed by a linked customer row with the
+    // same email. The linked row's password mirror stays in sync with the
+    // doctor's current password on every doctor-credential login.
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { email: normalized },
+    });
+    if (
+      doctor &&
+      doctor.isActive &&
+      doctor.password &&
+      (await verifyPassword(password || "", doctor.password))
+    ) {
+      if (!customer) {
+        const linked = await this.prisma.customer.create({
+          data: {
+            email: normalized,
+            password: doctor.password,
+            name: doctor.name,
+            phone: doctor.phone,
+            isActive: true,
+          },
+        });
+        return this.completeLogin(linked);
+      }
+      if (customer.isActive) {
+        const synced = await this.prisma.customer.update({
+          where: { id: customer.id },
+          data: { password: doctor.password },
+        });
+        return this.completeLogin(synced);
+      }
+    }
+
+    throw new UnauthorizedException("Invalid email or password");
   }
 
   async refresh(refreshToken: string) {

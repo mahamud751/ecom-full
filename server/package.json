@@ -11,7 +11,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "prisma db seed",
+    "db:media": "tsx scripts/prepare-media.ts",
     "db:import-medicines": "tsx scripts/import-medicines.ts",
     "db:pack-images": "tsx scripts/generate-pack-images.ts",
     "db:import-beauty": "tsx scripts/import-beauty.ts",
@@ -21,7 +22,11 @@
     "db:rasterize-packs": "tsx scripts/rasterize-pack-images.ts",
     "db:medicine-photos": "tsx scripts/apply-medicine-photos.ts",
     "db:enrich-lab": "tsx scripts/enrich-lab.ts",
-    "db:setup": "prisma db push && tsx prisma/seed.ts",
+    "db:promote": "tsx scripts/promote-open-catalog.ts",
+    "db:catalog": "tsx scripts/bootstrap-catalog.ts",
+    "db:live-quality": "tsx scripts/live-catalog-quality.ts",
+    "db:setup": "prisma generate && prisma db push && prisma db seed",
+    "db:full": "npm run db:setup && npm run db:catalog",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -55,5 +60,14 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true,
+    "esbuild@0.28.2": true,
+    "@scarf/scarf@1.4.0": true,
+    "@firebase/util@1.15.3": true,
+    "protobufjs@7.6.6": true
   }
 }

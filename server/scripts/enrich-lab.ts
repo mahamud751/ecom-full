@@ -3,6 +3,7 @@
  * Does not wipe the store catalog.
  * From server/: npx tsx scripts/enrich-lab.ts
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
