@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Logger,
   Param,
   Post,
@@ -132,7 +133,11 @@ export class CallRingController {
     }
 
     const ringAt = new Date();
-    await this.setState(c.id, "RINGING", undefined, ringAt);
+    // A new ring is "calling" until one of the patient's phones confirms it.
+    await this.prisma.consultation.update({
+      where: { id: c.id },
+      data: { callState: "RINGING", callStateAt: ringAt, callDeliveredAt: null },
+    });
     const sent = await this.push.sendData(
       tokens,
       {
@@ -181,6 +186,81 @@ export class CallRingController {
       await this.dismiss(c, c.callStateAt, "cancelled");
     }
     return { success: true };
+  }
+
+  /**
+   * Delivery receipt: a patient's phone got the `incoming_call` push and is
+   * ringing, so the Doctor Portal moves from "Calling…" to "Ringing…".
+   * Unauthenticated like `answer` (a closed app has no session); it only
+   * marks a ring that is still RINGING.
+   */
+  @Post("received")
+  @ApiOperation({ summary: "Patient's phone confirms the doctor's call is ringing" })
+  async received(@Param("id") id: string, @Body() body: { ringId?: string }) {
+    const ringAt = new Date(Number(body?.ringId));
+    if (Number.isNaN(ringAt.getTime())) {
+      throw new ApiError(400, "ringId is required");
+    }
+    await this.prisma.consultation.updateMany({
+      where: {
+        OR: [{ id }, { consultNumber: id }],
+        callState: "RINGING",
+        callStateAt: ringAt,
+        callDeliveredAt: null,
+      },
+      data: { callDeliveredAt: new Date() },
+    });
+    return { success: true };
+  }
+
+  /**
+   * Delivery receipt: the doctor's phone got the `patient_call` push and is
+   * ringing, so the patient's screen moves from "Calling…" to "Ringing…".
+   */
+  @Post("ringing")
+  @UseGuards(JwtAuthGuard)
+  @Roles("DOCTOR")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Doctor's phone confirms a patient's call is ringing" })
+  async ringing(
+    @Param("id") id: string,
+    @Body() body: { ringId?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    const c = await this.consultation(id);
+    if (c.doctorId !== user.sub) {
+      throw new ApiError(403, "Not your consultation");
+    }
+    this.doctorRing.markDelivered(c.id, body?.ringId);
+    return { success: true };
+  }
+
+  /**
+   * The patient's view of their call to the doctor: who they are calling and
+   * whether it is calling, ringing, declined or unanswered. Unauthenticated
+   * like `answer` (guest consults have no session); ids are unguessable.
+   */
+  @Get("status")
+  @ApiOperation({ summary: "Ring status of a patient's call to the doctor" })
+  async status(@Param("id") id: string) {
+    const c = await this.prisma.consultation.findFirst({
+      where: { OR: [{ id }, { consultNumber: id }] },
+      include: {
+        doctor: {
+          select: { name: true, image: true, specialty: true, isOnline: true },
+        },
+      },
+    });
+    if (!c) throw new ApiError(404, "Consultation not found");
+    return {
+      state: this.doctorRing.state(c.id),
+      doctor: {
+        name: c.doctor.name,
+        image: c.doctor.image,
+        specialty: c.doctor.specialty,
+        isOnline: c.doctor.isOnline,
+      },
+    };
   }
 
   /**

@@ -5,7 +5,33 @@ import { PushService } from "../push/push.service";
 /** How long the doctor's phone rings before the call counts as missed. */
 const RING_SECONDS = 45;
 
-type Ring = { ringAt: number; timer: ReturnType<typeof setTimeout> };
+/** How long the outcome of a ring stays readable for the caller's screen. */
+const OUTCOME_SECONDS = 120;
+
+type Ring = {
+  ringAt: number;
+  timer: ReturnType<typeof setTimeout>;
+  /** A doctor's phone confirmed it received the ring (it is ringing). */
+  delivered: boolean;
+};
+
+type Outcome = {
+  reason: "accepted" | "declined" | "cancelled" | "missed";
+  timer: ReturnType<typeof setTimeout>;
+};
+
+/**
+ * What the patient's call screen shows, WhatsApp-style:
+ *   calling     → ring sent, no doctor phone has confirmed it yet
+ *   ringing     → a doctor phone is ringing
+ *   unavailable → no doctor phone to ring (the Doctor Portal can still join)
+ *   declined / missed / accepted / cancelled → how the last ring ended
+ */
+export type RingState =
+  | "calling"
+  | "ringing"
+  | "unavailable"
+  | Outcome["reason"];
 
 type RingConsult = {
   id: string;
@@ -30,6 +56,7 @@ type RingConsult = {
 export class DoctorRingService {
   private readonly log = new Logger("DoctorRing");
   private readonly rings = new Map<string, Ring>();
+  private readonly outcomes = new Map<string, Outcome>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -57,6 +84,7 @@ export class DoctorRingService {
     if (!this.push.enabled || this.rings.has(c.id)) return 0;
     const tokens = await this.doctorTokens(c.doctorId);
     if (!tokens.length) return 0;
+    this.clearOutcome(c.id);
 
     const ringAt = Date.now();
     const timer = setTimeout(() => {
@@ -64,7 +92,7 @@ export class DoctorRingService {
         this.log.error(`Missed-call timeout: ${e}`),
       );
     }, RING_SECONDS * 1000);
-    this.rings.set(c.id, { ringAt, timer });
+    this.rings.set(c.id, { ringAt, timer, delivered: false });
 
     const sent = await this.push.sendData(
       tokens,
@@ -94,6 +122,7 @@ export class DoctorRingService {
     const ring = this.rings.get(consultId);
     if (!ring) return;
     this.clear(consultId);
+    this.setOutcome(consultId, reason);
 
     const c = await this.prisma.consultation.findUnique({
       where: { id: consultId },
@@ -113,6 +142,36 @@ export class DoctorRingService {
       },
       { ttlSeconds: reason === "missed" ? 24 * 3600 : 60 },
     );
+  }
+
+  /** A doctor's phone received the ring and is now ringing. */
+  markDelivered(consultId: string, ringId?: string) {
+    const ring = this.rings.get(consultId);
+    if (ring && (!ringId || ringId === String(ring.ringAt))) {
+      ring.delivered = true;
+    }
+  }
+
+  /** Where the patient's call to the doctor stands right now. */
+  state(consultId: string): RingState {
+    const ring = this.rings.get(consultId);
+    if (ring) return ring.delivered ? "ringing" : "calling";
+    return this.outcomes.get(consultId)?.reason ?? "unavailable";
+  }
+
+  private setOutcome(consultId: string, reason: Outcome["reason"]) {
+    this.clearOutcome(consultId);
+    const timer = setTimeout(
+      () => this.outcomes.delete(consultId),
+      OUTCOME_SECONDS * 1000,
+    );
+    this.outcomes.set(consultId, { reason, timer });
+  }
+
+  private clearOutcome(consultId: string) {
+    const outcome = this.outcomes.get(consultId);
+    if (outcome) clearTimeout(outcome.timer);
+    this.outcomes.delete(consultId);
   }
 
   private clear(consultId: string) {

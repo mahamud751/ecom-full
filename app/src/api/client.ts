@@ -92,11 +92,13 @@ export function apiErrorMessage(
     const data = err.response?.data as
       | { error?: string; message?: unknown }
       | undefined;
-    if (data?.error) return data.error;
-    if (typeof data?.message === 'string') return data.message;
+    // Nest errors carry the reason in `message`; `error` is then only the
+    // status text ("Unauthorized"). ApiError puts its reason in `error`.
+    if (typeof data?.message === 'string' && data.message) return data.message;
     if (Array.isArray(data?.message) && typeof data.message[0] === 'string') {
       return data.message[0];
     }
+    if (data?.error) return data.error;
     if (err.code === 'ECONNABORTED') return 'Request timed out';
     if (!err.response) return 'Cannot reach the server';
   }

@@ -190,7 +190,27 @@ export async function handleRemoteMessage(message: RemoteMessage) {
     // lock screen.
     useIncomingCall.setState({ call });
     setCallOverLockScreen(true);
-    await showRinging(call);
+    try {
+      await showRinging(call);
+    } catch (e) {
+      // The in-app ringing screen must still open (foreground).
+      console.warn('Could not show the call notification', e);
+    }
+    if (call.role === 'doctor') {
+      // Delivery receipt: the patient's screen switches to "Ringing…".
+      void doctorHttp
+        .post(`/consultations/${call.consultId}/call/ringing`, {
+          ringId: call.ringId || undefined,
+        })
+        .catch(() => undefined);
+    } else if (call.ringId) {
+      // Delivery receipt: the Doctor Portal switches to "Ringing…".
+      void http
+        .post(`/consultations/${call.consultId}/call/received`, {
+          ringId: call.ringId,
+        })
+        .catch(() => undefined);
+    }
     return;
   }
   if (data?.type === 'call_end' && data.consultId) {

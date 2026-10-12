@@ -27,6 +27,8 @@ import { doctorHttp, hasDoctorSession } from '../api/doctorClient';
 import { setCallOverLockScreen } from '../lib/lockScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
+import { SmartImage } from '../components/ui';
+import { thumbUrl } from '../config';
 import { colors } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootParamList } from '../navigation/types';
@@ -42,6 +44,39 @@ type TokenData = {
   doctorName: string;
   patientName: string;
 };
+
+/** GET /consultations/:id/call/status — the patient's call to the doctor. */
+type RingStatus = {
+  state:
+    | 'calling'
+    | 'ringing'
+    | 'unavailable'
+    | 'accepted'
+    | 'declined'
+    | 'cancelled'
+    | 'missed';
+  doctor: { name: string; image: string; specialty: string; isOnline: boolean };
+};
+
+/** WhatsApp-style line under the doctor's name while they haven't joined. */
+function ringText(ring: RingStatus): string {
+  switch (ring.state) {
+    case 'ringing':
+      return 'Ringing…';
+    case 'accepted':
+      return 'Connecting…';
+    case 'declined':
+      return 'Busy — the doctor can\'t take the call right now';
+    case 'missed':
+      return 'No answer';
+    default:
+      // Not delivered to a doctor phone (yet): still calling. The Doctor
+      // Portal sees the waiting call too.
+      return ring.doctor.isOnline
+        ? 'Calling…'
+        : 'Calling… the doctor is offline and will be notified';
+  }
+}
 
 /**
  * Android only grants the camera / microphone after a runtime prompt;
@@ -73,6 +108,9 @@ export function CallRoomScreen({ navigation, route }: Props) {
   const [, setJoined] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  const [ring, setRing] = useState<RingStatus | null>(null);
+  // Once the doctor has been in the call, "left" beats any ring status.
+  const [peerJoined, setPeerJoined] = useState(false);
 
   // A call answered on a locked phone stays visible over the lock screen
   // until it ends; then the phone is locked again.
@@ -131,6 +169,7 @@ export function CallRoomScreen({ navigation, route }: Props) {
           },
           onUserJoined: (_conn, uid) => {
             setRemoteUid(uid);
+            setPeerJoined(true);
             setStatus(`In call with ${peer}`);
           },
           onUserOffline: () => {
@@ -179,6 +218,25 @@ export function CallRoomScreen({ navigation, route }: Props) {
     };
   }, [consultationId, role, asDoctor, client]);
 
+  // Patient waiting for the doctor: follow the ring (calling → ringing …).
+  useEffect(() => {
+    if (asDoctor || peerJoined) return;
+    let stopped = false;
+    const poll = () =>
+      http
+        .get(`/consultations/${consultationId}/call/status`)
+        .then(res => {
+          if (!stopped) setRing(res.data as RingStatus);
+        })
+        .catch(() => undefined);
+    void poll();
+    const timer = setInterval(poll, 2000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [asDoctor, consultationId, peerJoined]);
+
   function toggleMic() {
     const next = !micOn;
     setMicOn(next);
@@ -215,12 +273,53 @@ export function CallRoomScreen({ navigation, route }: Props) {
   }
 
   const isVideo = mode === 'VIDEO' && tokenData?.consultType !== 'AUDIO';
+  const showRing = !asDoctor && !peerJoined && ring !== null;
+  const lineText = showRing ? ringText(ring) : status;
+  const peerName = asDoctor
+    ? tokenData?.patientName || 'Patient'
+    : ring?.doctor.name || tokenData?.doctorName || 'Your doctor';
+
+  // Who is being called, Messenger-style: photo, name, specialty, status.
+  const callee = (
+    <View style={[styles.remote, styles.waiting]}>
+      <View style={styles.ring2}>
+        <View style={styles.ring1}>
+          {ring?.doctor.image ? (
+            <SmartImage
+              uri={thumbUrl(ring.doctor.image, 110)}
+              style={styles.audioAvatar}
+              icon="stethoscope"
+            />
+          ) : (
+            <View style={styles.audioAvatar}>
+              <AppIcon
+                name={asDoctor ? 'user' : 'stethoscope'}
+                color={colors.gold}
+                size={44}
+                strokeWidth={1.6}
+              />
+            </View>
+          )}
+        </View>
+      </View>
+      <Text style={styles.audioTitle}>{peerName}</Text>
+      {ring?.doctor.specialty ? (
+        <Text style={styles.specialty}>{ring.doctor.specialty}</Text>
+      ) : null}
+      <Text style={styles.waitingText}>
+        {isVideo ? 'Video consultation' : 'Voice consultation'}
+      </Text>
+      <Text style={styles.statusLine}>{lineText}</Text>
+    </View>
+  );
 
   return (
     <View style={styles.root}>
       {isVideo ? (
         engineReady && remoteUid !== undefined ? (
           <RtcSurfaceView canvas={{ uid: remoteUid }} style={styles.remote} />
+        ) : tokenData ? (
+          callee
         ) : (
           <View style={[styles.remote, styles.waiting]}>
             <ActivityIndicator color={colors.gold} size="large" />
@@ -228,23 +327,19 @@ export function CallRoomScreen({ navigation, route }: Props) {
           </View>
         )
       ) : (
-        <View style={[styles.remote, styles.waiting]}>
-          <View style={styles.ring2}>
-            <View style={styles.ring1}>
-              <View style={styles.audioAvatar}>
-                <AppIcon name="stethoscope" color={colors.gold} size={44} strokeWidth={1.6} />
-              </View>
-            </View>
-          </View>
-          <Text style={styles.audioTitle}>Voice consultation</Text>
-          <Text style={styles.waitingText}>{status}</Text>
-        </View>
+        callee
       )}
 
       {isVideo ? (
         <View style={styles.localWrap}>
           {engineReady && camOn ? (
-            <RtcSurfaceView canvas={{ uid: 0 }} style={styles.local} />
+            // Both videos are native surfaces; without this the self-view
+            // sits behind the full-screen one and shows through as empty.
+            <RtcSurfaceView
+              canvas={{ uid: 0 }}
+              zOrderMediaOverlay
+              style={styles.local}
+            />
           ) : (
             <View style={[styles.local, styles.camOff]}>
               {camOn ? null : (
@@ -335,6 +430,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   audioTitle: { color: colors.white, fontSize: 20, fontWeight: '800', marginTop: 12 },
+  specialty: { color: colors.gold, fontSize: 14, fontWeight: '600' },
+  statusLine: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
   localWrap: {
     position: 'absolute',
     top: 56,

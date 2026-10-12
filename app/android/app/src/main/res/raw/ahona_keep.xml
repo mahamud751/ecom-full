@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Named ahona_keep (not keep.xml): React Native generates its own
+  raw/keep.xml, which would replace this file.
+  Release builds shrink unused resources. The call notification's icon is
+  only referenced by name from JS (notifee smallIcon), so the shrinker can't
+  see it and strips it — then displayNotification fails and calls never ring.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_notification" />

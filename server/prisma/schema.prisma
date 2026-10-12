@@ -679,6 +679,8 @@ model Consultation {
   /// Doctor → patient ringing: RINGING | ACCEPTED | DECLINED | MISSED | CANCELLED
   callState     String?
   callStateAt   DateTime?
+  /// The patient's phone received the current ring ("Calling…" → "Ringing…")
+  callDeliveredAt DateTime?
   startedAt     DateTime?
   endedAt       DateTime?
   fee           Float

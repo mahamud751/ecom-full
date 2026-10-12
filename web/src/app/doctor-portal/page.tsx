@@ -58,22 +58,34 @@ type ConsultRow = {
   /** Doctor → patient ringing: RINGING | ACCEPTED | DECLINED | MISSED | CANCELLED */
   callState?: string | null;
   callStateAt?: string | null;
+  /** Set once the patient's phone has received the current ring */
+  callDeliveredAt?: string | null;
 };
 
 /** A RINGING state older than this is stale (the phone has stopped). */
 const RING_STALE_MS = 35_000;
 
+/**
+ * Like callState, WhatsApp-style: a RINGING call no patient phone has
+ * received yet (offline / no data) is CALLING.
+ */
 function ringState(c: ConsultRow): string | null {
   if (!c.callState) return null;
-  if (
-    c.callState === "RINGING" &&
-    c.callStateAt &&
-    Date.now() - new Date(c.callStateAt).getTime() > RING_STALE_MS
-  ) {
-    return "MISSED";
+  if (c.callState === "RINGING") {
+    if (
+      c.callStateAt &&
+      Date.now() - new Date(c.callStateAt).getTime() > RING_STALE_MS
+    ) {
+      return "MISSED";
+    }
+    return c.callDeliveredAt ? "RINGING" : "CALLING";
   }
   return c.callState;
 }
+
+/** Still waiting for the patient to answer. */
+const isRinging = (state: string | null) =>
+  state === "RINGING" || state === "CALLING";
 
 export default function DoctorPortalPage() {
   const [doctor, setDoctor] = useState<DoctorSession | null>(null);
@@ -251,7 +263,7 @@ export default function DoctorPortalPage() {
       ringingIdRef.current = null;
       setRingingId(null);
       void joinCall(row);
-    } else if (!row || (state && state !== "RINGING")) {
+    } else if (!row || (state && !isRinging(state))) {
       ringingIdRef.current = null;
       setRingingId(null);
     }
@@ -711,7 +723,7 @@ function QueuePanel({
               </div>
               <RingStatus state={ringState(c)} />
               <div className="mt-3 flex gap-2">
-                {ringingId === c.id || ringState(c) === "RINGING" ? (
+                {ringingId === c.id || isRinging(ringState(c)) ? (
                   <button
                     type="button"
                     onClick={() => onCancelRing(c)}
@@ -753,6 +765,10 @@ function QueuePanel({
 }
 
 const RING_LABELS: Record<string, { text: string; className: string }> = {
+  CALLING: {
+    text: "Calling… patient’s phone is offline or has no data",
+    className: "bg-gray-100 text-gray-700",
+  },
   RINGING: { text: "Ringing patient’s phone…", className: "bg-amber-50 text-amber-800" },
   ACCEPTED: { text: "Patient answered", className: "bg-emerald-50 text-emerald-700" },
   DECLINED: { text: "Patient declined the call", className: "bg-red-50 text-red-700" },
